@@ -128,12 +128,39 @@
   }
   .refresh-btn svg { width: 14px; height: 14px; }
 
+  /* ---- FILTER BAR ---- */
+  .filter-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin: -24px 0 28px; position: relative; z-index: 1;
+  }
+  .filter-group {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px;
+  }
+  .filter-group button {
+    border: 0; background: transparent; color: var(--text-secondary);
+    font: 500 13px var(--font); padding: 4px 12px; border-radius: 16px; cursor: pointer;
+  }
+  .filter-group button:hover { color: var(--indigo); }
+  .filter-group button.active { background: var(--indigo); color: #fff; }
+  .filter-bar input[type="date"], .filter-bar select {
+    border: 1px solid var(--border); background: var(--white); color: var(--text-secondary);
+    font: 500 13px var(--font); padding: 5px 10px; border-radius: 20px;
+  }
+  .filter-bar .filter-sep { color: var(--text-tertiary); font-size: 13px; }
+  .account-tag {
+    display: inline-block; font-size: 10px; font-weight: 600; color: var(--violet);
+    background: rgba(139,92,246,0.08); border-radius: 4px; padding: 0 5px; margin-left: 4px;
+  }
+  .chart-toggle { float: right; }
+  .chart-toggle button { font-size: 11px; padding: 2px 10px; }
+
   /* ---- STAT CARDS ---- */
   .stats-row {
-    display: grid; grid-template-columns: repeat(4, 1fr);
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px; margin-bottom: 32px;
   }
-  @media (max-width: 780px) { .stats-row { grid-template-columns: repeat(2, 1fr); } }
 
   .stat-card {
     background: var(--white); border-radius: var(--radius);
@@ -522,11 +549,14 @@
   .model-opus { background: #EEF2FF; color: #3730A3; }
   .model-sonnet { background: #ECFDF5; color: #047857; }
   .model-haiku { background: #FFF7ED; color: #C2410C; }
+  .model-fable { background: #FDF2F8; color: #BE185D; }
   .model-unknown { background: #F1F5F9; color: #475569; }
   .model-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
   .model-opus .model-dot { background: #4F46E5; }
   .model-sonnet .model-dot { background: #10B981; }
   .model-haiku .model-dot { background: #F97316; }
+  .model-fable .model-dot { background: #EC4899; }
+  .model-unknown .model-dot { background: #94A3B8; }
   /* Sub-line pills in project rows — compact variant */
   .model-pills {
     list-style: none; padding: 0; margin: 5px 0 0;
@@ -712,6 +742,21 @@
     </div>
   </div>
 
+  <!-- Filters -->
+  <div class="filter-bar animate">
+    <div class="filter-group" id="rangePresets">
+      <button data-days="1">Today</button>
+      <button data-days="7">7d</button>
+      <button data-days="30">30d</button>
+      <button data-days="90">90d</button>
+      <button data-days="all">All</button>
+    </div>
+    <input type="date" id="fromDate" title="From (inclusive)">
+    <span class="filter-sep">to</span>
+    <input type="date" id="toDate" title="To (inclusive)">
+    <select id="accountSelect" title="Account" style="display:none"></select>
+  </div>
+
   <!-- Value proposition -->
   <div class="hero-section animate delay-1">
     <h2 class="hero-title">Your Claude Code usage, visualized.</h2>
@@ -754,7 +799,7 @@
         </div>
         <div class="how-tokens-type">
           <div class="how-tokens-dot" style="background:var(--rose)"></div>
-          <div><strong>Cache writes</strong> — Claude saves your conversation so it doesn't re-process everything next time. Costs 1.25x input, but only happens once.</div>
+          <div><strong>Cache writes</strong> — Claude saves your conversation so it doesn't re-process everything next time. Costs 1.25x input for a 5-minute cache, or 2x for the 1-hour cache Claude Code mostly uses.</div>
         </div>
         <div class="how-tokens-type">
           <div class="how-tokens-dot" style="background:var(--amber)"></div>
@@ -789,9 +834,13 @@
   <!-- Charts -->
   <div class="charts-grid animate delay-3">
     <div class="chart-card">
-      <h3 class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Day<div class="tooltip">How many tokens you used each day, broken down by type and cost.</div></h3>
+      <div class="filter-group chart-toggle" id="dailyMetric">
+        <button data-metric="tokens" class="active">Tokens</button>
+        <button data-metric="cost">Cost</button>
+      </div>
+      <h3 id="dailyChartTitle" class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Day<div class="tooltip">How many tokens you used each day, broken down by type, or the API-equivalent cost of each day.</div></h3>
       <canvas id="dailyChart"></canvas>
-      <div class="legend">
+      <div class="legend" id="dailyLegend">
         <div class="legend-item"><div class="legend-dot" style="background:var(--indigo)"></div> Input</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--rose)"></div> Cache writes</div>
         <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> Cache reads</div>
@@ -862,6 +911,7 @@
             <th data-sort="total" style="text-align:right" class="sorted has-tooltip has-tooltip-below">Total tokens<div class="tooltip">The total number of tokens used in this conversation. Higher means more expensive. Long conversations cost more because Claude re-reads everything each turn.</div></th>
             <th data-sort="input" style="text-align:right" class="has-tooltip has-tooltip-below">Read<div class="tooltip">Tokens Claude read: your messages, the conversation history, files, and system context. This grows with each message because the full history gets re-sent.</div></th>
             <th data-sort="output" style="text-align:right" class="has-tooltip has-tooltip-below">Written<div class="tooltip">Tokens Claude wrote back: responses, code, explanations. Usually a small fraction of the total.</div></th>
+            <th data-sort="cost" style="text-align:right" class="has-tooltip has-tooltip-below">Cost<div class="tooltip">API-equivalent cost, including subagents this conversation started. You don't pay this on a subscription.</div></th>
           </tr>
         </thead>
         <tbody id="sessionsBody"></tbody>
@@ -891,9 +941,39 @@
 let DATA = null;
 let currentSort = { key: 'total', dir: 'desc' };
 let searchQuery = '';
+let dailyMetric = 'tokens';
+
+// Date range + account filters, mirrored in the URL so a view can be bookmarked
+const FILTERS = (() => {
+  const p = new URLSearchParams(location.search);
+  const date = v => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
+  return { from: date(p.get('from')), to: date(p.get('to')), account: p.get('account') || 'all' };
+})();
+
+function filterQuery() {
+  const p = new URLSearchParams();
+  if (FILTERS.from) p.set('from', FILTERS.from);
+  if (FILTERS.to) p.set('to', FILTERS.to);
+  if (FILTERS.account && FILTERS.account !== 'all') p.set('account', FILTERS.account);
+  return p.toString();
+}
+
+function localISODate(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function fmtCost(n) {
+  if (n == null || isNaN(n)) return '$0';
+  if (n >= 1000) return '$' + Math.round(n).toLocaleString();
+  if (n >= 10) return '$' + n.toFixed(0);
+  if (n >= 0.01) return '$' + n.toFixed(2);
+  return n > 0 ? '<$0.01' : '$0';
+}
 
 function fmt(n) {
   if (n == null || isNaN(n)) return '0';
+  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + 'B';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 10_000) return (n / 1_000).toFixed(0) + 'K';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
@@ -908,15 +988,16 @@ function modelClass(m) {
   if (m.includes('opus')) return 'model-opus';
   if (m.includes('sonnet')) return 'model-sonnet';
   if (m.includes('haiku')) return 'model-haiku';
+  if (m.includes('fable') || m.includes('mythos')) return 'model-fable';
   return 'model-unknown';
 }
 function modelShort(m) {
-  // New format: claude-{family}-{major}-{minor}[-date]
-  // e.g. claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5-20251001
-  let match = m.match(/^claude-(opus|sonnet|haiku)-(\d+)-(\d+)/i);
+  // New format: claude-{family}-{major}[-{minor}][-date][[1m]]
+  // e.g. claude-opus-5, claude-opus-5-5[1m], claude-haiku-4-5-20251001, claude-opus-4-20250514
+  let match = m.match(/^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d{1,2}))?(?=$|-|\[)/i);
   if (match) {
     const name = match[1].charAt(0).toUpperCase() + match[1].slice(1);
-    return name + ' ' + match[2] + '.' + match[3];
+    return name + ' ' + match[2] + (match[3] ? '.' + match[3] : '') + (/\[1m\]$/i.test(m) ? ' 1M' : '');
   }
   // Old format with sub-version: claude-3-5-{family} or claude-3-7-{family}
   match = m.match(/^claude-(\d+)-(\d+)-(opus|sonnet|haiku)/i);
@@ -955,12 +1036,15 @@ function formatDate(d) {
   if (!d) return '';
   const parts = d.split('-');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[parseInt(parts[1])-1]} ${parseInt(parts[2])}`;
+  const year = parseInt(parts[0]) !== new Date().getFullYear() ? ` ${parts[0]}` : '';
+  return `${months[parseInt(parts[1])-1]} ${parseInt(parts[2])}${year}`;
 }
 
 async function fetchData() {
   try {
-    const res = await fetch('/api/data');
+    const query = filterQuery();
+    history.replaceState(null, '', query ? '?' + query : location.pathname);
+    const res = await fetch('/api/data' + (query ? '?' + query : ''));
     const json = await res.json();
     if (!res.ok || json.error) {
       showError(json.error || `Server returned ${res.status}`);
@@ -1015,9 +1099,73 @@ async function refreshData() {
   await fetchData();
 }
 
+// Filter controls
+function renderFilters() {
+  const f = DATA.filters || {};
+  const avail = f.availableRange || {};
+  const fromEl = document.getElementById('fromDate');
+  const toEl = document.getElementById('toDate');
+  fromEl.value = FILTERS.from || avail.from || '';
+  toEl.value = FILTERS.to || avail.to || '';
+  for (const el of [fromEl, toEl]) {
+    el.min = avail.from || '';
+    el.max = localISODate(new Date());
+  }
+
+  // Highlight the preset that matches the current range
+  const today = localISODate(new Date());
+  document.querySelectorAll('#rangePresets button').forEach(b => {
+    let active;
+    if (b.dataset.days === 'all') {
+      active = !FILTERS.from && !FILTERS.to;
+    } else {
+      const d = new Date();
+      d.setDate(d.getDate() - (parseInt(b.dataset.days) - 1));
+      active = FILTERS.from === localISODate(d) && (!FILTERS.to || FILTERS.to === today);
+    }
+    b.classList.toggle('active', active);
+  });
+
+  const select = document.getElementById('accountSelect');
+  const accounts = f.accounts || [];
+  select.style.display = accounts.length > 1 ? '' : 'none';
+  const sources = f.sources || [];
+  select.innerHTML = '<option value="all">All accounts</option>' + accounts.map(a => {
+    const src = sources.find(s => s.label === a);
+    return `<option value="${escapeHtml(a)}" title="${escapeHtml(src ? src.dir : '')}">${escapeHtml(a)}</option>`;
+  }).join('');
+  select.value = accounts.includes(FILTERS.account) ? FILTERS.account : 'all';
+}
+
+function applyFilters(changes) {
+  Object.assign(FILTERS, changes);
+  closeDrilldown();
+  fetchData();
+}
+
+document.querySelectorAll('#rangePresets button').forEach(b => {
+  b.addEventListener('click', () => {
+    if (b.dataset.days === 'all') return applyFilters({ from: '', to: '' });
+    const d = new Date();
+    d.setDate(d.getDate() - (parseInt(b.dataset.days) - 1));
+    applyFilters({ from: localISODate(d), to: '' });
+  });
+});
+document.getElementById('fromDate').addEventListener('change', e => applyFilters({ from: e.target.value }));
+document.getElementById('toDate').addEventListener('change', e => applyFilters({ to: e.target.value }));
+document.getElementById('accountSelect').addEventListener('change', e => applyFilters({ account: e.target.value }));
+document.querySelectorAll('#dailyMetric button').forEach(b => {
+  b.addEventListener('click', () => {
+    dailyMetric = b.dataset.metric;
+    document.querySelectorAll('#dailyMetric button').forEach(x => x.classList.toggle('active', x === b));
+    renderDailyChart();
+  });
+});
+
 function render() {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  renderFilters();
   renderWarnings();
   renderStats();
   renderInsights();
@@ -1035,8 +1183,16 @@ function renderStats() {
   document.getElementById('dateRange').textContent = range;
 
   const avgTokensPerMsg = t.totalQueries > 0 ? Math.round(t.totalTokens / t.totalQueries) : 0;
+  const days = (DATA.dailyUsage || []).length;
+  const costSub = [
+    days > 0 ? `~${fmtCost(t.totalCost / days)} per active day` : '',
+    t.totalSubagentCost > 0 ? `${fmtCost(t.totalSubagentCost)} from subagents` : '',
+    t.unpricedTokens > 0 ? `${fmt(t.unpricedTokens)} tokens unpriced` : '',
+  ].filter(Boolean).join(' · ');
 
   const cards = [
+    { label: 'API-Equivalent Cost', value: fmtCost(t.totalCost), sub: costSub,
+      tip: 'What these tokens would cost at Anthropic API list prices (' + escapeHtml((DATA.filters && DATA.filters.pricingSource) || '') + '), including 1-hour cache writes and subagents. Subscription plans bill differently. Models without a known price are left out.' },
     { label: 'Total Usage', value: fmt(t.totalTokens), sub: `${fmt(t.totalInputTokens)} input · ${fmt(t.totalCacheCreationTokens || 0)} cache writes · ${fmt(t.totalCacheReadTokens || 0)} cache reads · ${fmt(t.totalOutputTokens)} output`,
       tip: 'All tokens across your conversations. Input = fresh context, cache writes = first-time caching, cache reads = reused from cache (10x cheaper), output = Claude\'s responses.' },
     { label: 'Conversations', value: fmtFull(t.totalSessions), sub: `Each one used ~${fmt(t.avgTokensPerSession)} tokens on average`,
@@ -1044,11 +1200,11 @@ function renderStats() {
     { label: 'Messages Sent', value: fmtFull(t.totalQueries), sub: `Each message used ~${fmt(avgTokensPerMsg)} tokens on average`,
       tip: 'Every time you hit Enter and send something to Claude, that is one message. This includes follow-up tool calls Claude makes automatically behind the scenes.' },
     { label: 'Cache Hit Rate', value: `${((t.cacheHitRate || 0) * 100).toFixed(0)}%`, sub: `${fmt(t.totalCacheReadTokens || 0)} tokens served from cache`,
-      tip: 'The percentage of input tokens that were served from cache instead of being processed fresh. Higher is better -- cached tokens are 10x cheaper and help you stay under rate limits.' },
+      tip: 'The percentage of input tokens that were served from cache instead of being processed fresh. Higher is better -- cached tokens are 10x to 40x cheaper and help you stay under rate limits.' },
   ];
 
   document.getElementById('statsRow').innerHTML = cards.map((c, i) => `
-    <div class="stat-card animate delay-${i + 1}">
+    <div class="stat-card animate delay-${Math.min(i + 1, 5)}">
       <div class="stat-label has-tooltip">${c.label}<span class="help-icon">?</span><div class="tooltip">${c.tip}</div></div>
       <div class="stat-value">${c.value}</div>
       <div class="stat-sub">${c.sub}</div>
@@ -1087,7 +1243,9 @@ function renderDailyChart() {
   const canvas = document.getElementById('dailyChart');
   const ctx = canvas.getContext('2d');
   const data = DATA.dailyUsage;
-  if (!data.length) return;
+  const isCost = dailyMetric === 'cost';
+  document.getElementById('dailyChartTitle').firstChild.textContent = isCost ? 'Cost per Day' : 'Tokens per Day';
+  document.getElementById('dailyLegend').style.visibility = isCost ? 'hidden' : '';
 
   const dpr = window.devicePixelRatio || 1;
   const w = canvas.parentElement.clientWidth - 48;
@@ -1096,10 +1254,12 @@ function renderDailyChart() {
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
+  if (!data.length) return;
 
-  const maxTotal = Math.max(...data.map(d => d.totalTokens));
-  const barW = Math.max(8, Math.min(32, (w - 52) / data.length - 3));
-  const gap = 3;
+  const valueOf = d => isCost ? d.cost : d.totalTokens;
+  const maxTotal = Math.max(...data.map(valueOf)) || 1;
+  const gap = data.length > 60 ? 1 : 3;
+  const barW = Math.max(1, Math.min(32, (w - 52) / data.length - gap));
   const chartH = h - 36;
   const startX = 48;
 
@@ -1110,7 +1270,7 @@ function renderDailyChart() {
   for (let i = 0; i <= 4; i++) {
     const val = (maxTotal / 4) * i;
     const y = chartH - (chartH * i / 4) + 8;
-    ctx.fillText(fmt(val), startX - 10, y + 3);
+    ctx.fillText(isCost ? fmtCost(val) : fmt(val), startX - 10, y + 3);
     ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
   }
@@ -1132,6 +1292,14 @@ function renderDailyChart() {
     const baseY = chartH + 8;
     const r = Math.min(4, barW / 2);
     let y = baseY;
+
+    if (isCost) {
+      let costH = (d.cost / maxTotal) * chartH;
+      if (d.cost > 0) costH = Math.max(minH, costH);
+      ctx.fillStyle = inGrad;
+      ctx.beginPath(); roundedRect(ctx, x, y - costH, barW, costH, r); ctx.fill();
+      return;
+    }
 
     // Bottom: output (teal)
     let outH = (d.outputTokens / maxTotal) * chartH;
@@ -1202,18 +1370,19 @@ function renderModelChart() {
   const canvas = document.getElementById('modelChart');
   const ctx = canvas.getContext('2d');
   const data = DATA.modelBreakdown;
-  if (!data.length) return;
 
   const dpr = window.devicePixelRatio || 1;
   const size = Math.min(180, canvas.parentElement.clientWidth - 48);
   canvas.width = size * dpr; canvas.height = size * dpr;
   canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
   ctx.scale(dpr, dpr);
+  document.getElementById('modelLegend').innerHTML = '';
+  if (!data.length) return;
 
   const cx = size/2, cy = size/2, r = size/2 - 6, innerR = r * 0.6;
   const total = data.reduce((s, d) => s + d.totalTokens, 0);
 
-  const modelColors = { opus: ['#6366F1','#818CF8'], sonnet: ['#10B981','#34D399'], haiku: ['#F97316','#FB923C'] };
+  const modelColors = { opus: ['#6366F1','#818CF8'], sonnet: ['#10B981','#34D399'], haiku: ['#F97316','#FB923C'], fable: ['#EC4899','#F472B6'], mythos: ['#EC4899','#F472B6'] };
   function getColors(m) {
     for (const [k, c] of Object.entries(modelColors)) { if (m.includes(k)) return c; }
     return ['#94A3B8','#CBD5E1'];
@@ -1251,7 +1420,7 @@ function renderModelChart() {
     const pct = ((d.totalTokens / total) * 100).toFixed(1);
     return `<div class="legend-item">
       <div class="legend-dot" style="background:${getColors(d.model)[0]}"></div>
-      <span><strong>${modelShort(d.model)}</strong> &ndash; ${fmt(d.totalTokens)} (${pct}%)</span>
+      <span><strong>${escapeHtml(modelShort(d.model))}</strong> &ndash; ${fmt(d.totalTokens)} (${pct}%) &middot; ${d.priced === false ? 'unpriced' : fmtCost(d.cost)}</span>
     </div>`;
   }).join('');
 }
@@ -1348,7 +1517,10 @@ function renderProjectBreakdown() {
 // Top prompts
 function renderTopPrompts() {
   const prompts = DATA.topPrompts;
-  if (!prompts.length) return;
+  if (!prompts.length) {
+    document.getElementById('topPromptsList').innerHTML = '<div style="padding:20px;color:var(--text-tertiary);font-size:13px">No prompts in this range.</div>';
+    return;
+  }
   const maxTokens = prompts[0].totalTokens;
 
   document.getElementById('topPromptsList').innerHTML = prompts.map((p, i) => {
@@ -1358,11 +1530,11 @@ function renderTopPrompts() {
     const freshPct = total > 0 ? (freshIn / total) * 100 : 0;
     const cachePct = total > 0 ? (cached / total) * 100 : 0;
     const outPct = total > 0 ? (p.outputTokens / total) * 100 : 0;
-    return `<div class="prompt-row" onclick="openDrilldown('${p.sessionId}')">
+    return `<div class="prompt-row" onclick="openDrilldown('${p.sessionId}', '${escapeHtml(p.account)}')">
       <div class="prompt-rank">${i + 1}</div>
       <div>
         <div class="prompt-text">${escapeHtml(p.prompt)}</div>
-        <div class="prompt-meta">${formatDate(p.date)} &middot; ${modelShort(p.model)}</div>
+        <div class="prompt-meta">${formatDate(p.date)} &middot; ${escapeHtml(modelShort(p.model))} &middot; ${fmtCost(p.cost)}${multiAccount() ? `<span class="account-tag">${escapeHtml(p.account)}</span>` : ''}</div>
         <div class="token-bar-wrap" style="width:${Math.max(10, (p.totalTokens / maxTokens) * 100)}%">
           <div class="token-bar-in" style="width:${freshPct}%"></div>
           <div class="token-bar-cache" style="width:${cachePct}%"></div>
@@ -1385,7 +1557,8 @@ function renderSessions() {
     sessions = sessions.filter(s =>
       s.firstPrompt.toLowerCase().includes(q) ||
       s.model.toLowerCase().includes(q) ||
-      projectShort(s.project).toLowerCase().includes(q)
+      projectShort(s.project).toLowerCase().includes(q) ||
+      (s.account || '').toLowerCase().includes(q)
     );
   }
 
@@ -1397,6 +1570,7 @@ function renderSessions() {
     total: (a, b) => a.totalTokens - b.totalTokens,
     input: (a, b) => a.inputTokens - b.inputTokens,
     output: (a, b) => a.outputTokens - b.outputTokens,
+    cost: (a, b) => a.cost - b.cost,
   };
   const fn = sortFns[currentSort.key] || sortFns.total;
   sessions.sort((a, b) => currentSort.dir === 'desc' ? fn(b, a) : fn(a, b));
@@ -1404,17 +1578,18 @@ function renderSessions() {
   document.getElementById('sessionCount').textContent = `${sessions.length} sessions`;
 
   document.getElementById('sessionsBody').innerHTML = sessions.map(s => `
-    <tr onclick="openDrilldown('${s.sessionId}')">
+    <tr onclick="openDrilldown('${s.sessionId}', '${escapeHtml(s.account)}')">
       <td class="date-cell">
-        ${formatDate(s.date)}
+        ${formatDate(s.date)}${multiAccount() ? `<span class="account-tag">${escapeHtml(s.account)}</span>` : ''}
         <span class="project-tag" title="${escapeHtml(projectShort(s.project))}">${escapeHtml(projectShort(s.project))}</span>
       </td>
       <td><div class="prompt-preview" title="${escapeHtml(s.firstPrompt)}">${escapeHtml(s.firstPrompt)}</div></td>
-      <td><span class="model-badge ${modelClass(s.model)}"><span class="model-dot"></span>${modelShort(s.model)}</span></td>
+      <td><span class="model-badge ${modelClass(s.model)}"><span class="model-dot"></span>${escapeHtml(modelShort(s.model))}</span></td>
       <td class="token-num">${s.queryCount}</td>
       <td class="token-num" style="font-weight:700">${fmt(s.totalTokens)}</td>
       <td class="token-num">${fmt(s.inputTokens)}</td>
       <td class="token-num">${fmt(s.outputTokens)}</td>
+      <td class="token-num">${fmtCost(s.cost)}</td>
     </tr>
   `).join('');
 }
@@ -1663,14 +1838,37 @@ function renderDrilldownInsight(grouped, session) {
   insightBox.style.display = 'block';
 }
 
-// Drill-down
-function openDrilldown(sessionId) {
-  const session = DATA.sessions.find(s => s.sessionId === sessionId);
+// Show account tags only when sessions from several accounts are on screen
+function multiAccount() {
+  return FILTERS.account === 'all' && ((DATA.filters && DATA.filters.accounts) || []).length > 1;
+}
+
+// Drill-down (per-turn rows are loaded on demand)
+let drilldownRequest = 0;
+async function openDrilldown(sessionId, account) {
+  const session = DATA.sessions.find(s => s.sessionId === sessionId && (!account || s.account === account));
   if (!session) return;
+
+  const requestId = ++drilldownRequest;
+  if (!session.queries) {
+    const p = new URLSearchParams(filterQuery());
+    p.set('id', sessionId);
+    p.set('account', session.account);
+    try {
+      const res = await fetch('/api/session?' + p.toString());
+      if (!res.ok) return;
+      session.queries = (await res.json()).queries;
+    } catch {
+      return;
+    }
+    if (requestId !== drilldownRequest) return; // another session was opened meanwhile
+  }
 
   document.getElementById('drilldownTitle').textContent = session.firstPrompt.substring(0, 140);
   document.getElementById('drilldownMeta').textContent =
-    `${formatDate(session.date)} \u00B7 ${modelShort(session.model)} \u00B7 ${session.queryCount} messages \u00B7 ${fmt(session.totalTokens)} tokens`;
+    `${formatDate(session.date)} \u00B7 ${modelShort(session.model)} \u00B7 ${session.queryCount} messages \u00B7 ${fmt(session.totalTokens)} tokens \u00B7 ${fmtCost(session.cost)}` +
+    (session.subagentCost > 0 ? ` (${fmtCost(session.subagentCost)} subagents)` : '') +
+    (multiAccount() ? ` \u00B7 ${session.account}` : '');
 
   const grouped = groupSessionQueries(session.queries);
 
@@ -1692,7 +1890,7 @@ function openDrilldown(sessionId) {
       <div class="query-prompt">${escapeHtml(q.prompt.substring(0, 500))}</div>
       <div class="query-tokens-col">
         <div class="total">${fmt(q.totalTokens)}</div>
-        <div class="detail">${fmt(q.inputTokens)} in / ${fmt(cached)} cached / ${fmt(q.outputTokens)} out${cont}</div>
+        <div class="detail">${fmt(q.inputTokens)} in / ${fmt(cached)} cached / ${fmt(q.outputTokens)} out${cont} &middot; ${fmtCost(q.cost)}</div>
       </div>
     </div>`;
   }).join('');
