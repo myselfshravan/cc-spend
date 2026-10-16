@@ -5,703 +5,439 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Spend</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* Ledger palette: ruled paper, blue-black ink, red ink for money */
   :root {
-    --bg: #F8F9FC;
-    --bg-mesh-1: #EEF0FF;
-    --bg-mesh-2: #F0FDFA;
-    --white: #FFFFFF;
-    --text: #0F172A;
-    --text-secondary: #475569;
-    --text-tertiary: #94A3B8;
-    --border: rgba(0,0,0,0.06);
-    --border-strong: rgba(0,0,0,0.1);
+    --paper: #EDF1EA;
+    --sheet: #FBFCF9;
+    --ink: #1C2733;
+    --ink-2: #4D5A57;
+    --ink-3: #75817D;
+    --rule: #D3DCCF;
+    --rule-strong: #B9C6B4;
+    --red: #B23A2E;
+    --blue: #2B5797;
+    --ochre: #B88A1B;
+    --green: #3D7A6E;
+    --hover: #F2F5EF;
 
-    --indigo: #6366F1;
-    --violet: #8B5CF6;
-    --purple: #A855F7;
-    --teal: #14B8A6;
-    --cyan: #06B6D4;
-    --emerald: #10B981;
-    --amber: #F59E0B;
-    --orange: #F97316;
-    --rose: #F43F5E;
-    --blue: #3B82F6;
+    /* Token types, shared by charts, bars and legends */
+    --t-input: var(--blue);
+    --t-write: #C0675C;
+    --t-read: #D4AE4A;
+    --t-output: var(--green);
 
-    --gradient-main: linear-gradient(135deg, #6366F1, #8B5CF6, #A855F7);
-    --gradient-teal: linear-gradient(135deg, #14B8A6, #06B6D4);
-    --gradient-warm: linear-gradient(135deg, #F59E0B, #F97316);
-    --gradient-rose: linear-gradient(135deg, #F43F5E, #EC4899);
-
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-    --shadow-md: 0 4px 16px rgba(0,0,0,0.06);
-    --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
-    --shadow-glow: 0 0 40px rgba(99,102,241,0.15);
-
-    --radius: 16px;
-    --radius-sm: 10px;
-    --radius-xs: 6px;
-    --font: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    --radius: 6px;
+    --font: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   }
 
   body {
     font-family: var(--font);
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.6;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.5;
     min-height: 100vh;
-    overflow-x: hidden;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
   }
-
-  /* Mesh gradient background */
-  body::before {
-    content: '';
-    position: fixed; top: 0; left: 0; right: 0; height: 600px;
-    background:
-      radial-gradient(ellipse 80% 60% at 10% 0%, rgba(99,102,241,0.12) 0%, transparent 60%),
-      radial-gradient(ellipse 60% 50% at 90% 10%, rgba(139,92,246,0.08) 0%, transparent 50%),
-      radial-gradient(ellipse 50% 40% at 50% 20%, rgba(20,184,166,0.06) 0%, transparent 50%);
-    pointer-events: none; z-index: 0;
-  }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  canvas { display: block; }
 
   /* Loading */
   .loading {
     display: flex; align-items: center; justify-content: center;
-    min-height: 100vh; flex-direction: column; gap: 20px;
+    min-height: 100vh; flex-direction: column; gap: 16px;
   }
   .spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--border); border-top-color: var(--indigo);
-    border-radius: 50%; animation: spin 0.7s linear infinite;
+    width: 28px; height: 28px;
+    border: 2px solid var(--rule); border-top-color: var(--ink);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { color: var(--text-secondary); font-size: 15px; font-weight: 500; }
+  .loading-text { color: var(--ink-2); font-size: 14px; }
 
-  /* Layout */
-  .container { max-width: 1200px; margin: 0 auto; padding: 40px 28px 60px; position: relative; z-index: 1; }
+  .container { max-width: 1180px; margin: 0 auto; padding: 28px 28px 48px; }
+  @media (max-width: 640px) { .container { padding: 20px 16px 40px; } }
 
-  /* Fade-in animation */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  .animate { animation: fadeUp 0.5s ease-out both; }
-  .delay-1 { animation-delay: 0.05s; }
-  .delay-2 { animation-delay: 0.1s; }
-  .delay-3 { animation-delay: 0.15s; }
-  .delay-4 { animation-delay: 0.2s; }
-  .delay-5 { animation-delay: 0.25s; }
+  /* Kept as a hook for the one reveal: the ledger line on first load */
+  .animate { }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
   /* ---- HEADER ---- */
   .header {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 40px; flex-wrap: wrap; gap: 16px;
+    gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
   }
-  .header-left { display: flex; align-items: center; gap: 14px; }
+  .header-left { display: flex; align-items: center; gap: 12px; }
   .logo-mark {
-    width: 40px; height: 40px; border-radius: 12px;
-    background: var(--gradient-main);
+    width: 32px; height: 32px; border-radius: var(--radius);
+    background: var(--ink);
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 12px rgba(99,102,241,0.3);
   }
-  .logo-mark svg { width: 22px; height: 22px; }
-  .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-  .header-right { display: flex; align-items: center; gap: 14px; }
-  .date-range {
-    color: var(--text-tertiary); font-size: 13px; font-weight: 500;
-    background: var(--white); padding: 6px 14px; border-radius: 20px;
-    border: 1px solid var(--border);
-  }
+  .logo-mark svg { width: 18px; height: 18px; }
+  .header h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.4px; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .date-range { display: none; }
   .refresh-btn {
-    background: var(--white); border: 1px solid var(--border);
-    color: var(--text-secondary); padding: 7px 16px; border-radius: 20px;
-    cursor: pointer; font-size: 13px; font-weight: 500; font-family: var(--font);
-    transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+    background: transparent; border: 1px solid var(--rule-strong);
+    color: var(--ink-2); padding: 6px 12px; border-radius: var(--radius);
+    cursor: pointer; font: 500 13px var(--font);
+    display: flex; align-items: center; gap: 6px;
   }
-  .refresh-btn:hover {
-    border-color: var(--indigo); color: var(--indigo);
-    box-shadow: 0 2px 8px rgba(99,102,241,0.12);
-  }
+  .refresh-btn:hover { background: var(--sheet); color: var(--ink); border-color: var(--ink-3); }
   .refresh-btn svg { width: 14px; height: 14px; }
 
   /* ---- FILTER BAR ---- */
   .filter-bar {
+    position: sticky; top: 0; z-index: 50;
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    margin: -24px 0 28px; position: relative; z-index: 1;
+    padding: 10px 0; margin-bottom: 20px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
   }
   .filter-group {
-    display: flex; align-items: center; gap: 4px;
-    background: var(--white); border: 1px solid var(--border);
-    border-radius: 20px; padding: 3px;
+    display: inline-flex; border: 1px solid var(--rule-strong);
+    border-radius: var(--radius); overflow: hidden; background: var(--sheet);
   }
   .filter-group button {
-    border: 0; background: transparent; color: var(--text-secondary);
-    font: 500 13px var(--font); padding: 4px 12px; border-radius: 16px; cursor: pointer;
+    border: 0; border-right: 1px solid var(--rule); background: transparent;
+    color: var(--ink-2); font: 500 13px var(--font);
+    padding: 5px 12px; cursor: pointer;
   }
-  .filter-group button:hover { color: var(--indigo); }
-  .filter-group button.active { background: var(--indigo); color: #fff; }
+  .filter-group button:last-child { border-right: 0; }
+  .filter-group button:hover { color: var(--ink); background: var(--hover); }
+  .filter-group button.active { background: var(--ink); color: var(--sheet); }
   .filter-bar input[type="date"], .filter-bar select {
-    border: 1px solid var(--border); background: var(--white); color: var(--text-secondary);
-    font: 500 13px var(--font); padding: 5px 10px; border-radius: 20px;
+    border: 1px solid var(--rule-strong); background: var(--sheet); color: var(--ink);
+    font: 500 13px var(--font); padding: 4px 8px; border-radius: var(--radius); height: 30px;
   }
-  .filter-bar .filter-sep { color: var(--text-tertiary); font-size: 13px; }
+  .filter-bar select { padding-right: 24px; }
+  .filter-bar .filter-sep { color: var(--ink-3); font-size: 13px; }
   .account-tag {
-    display: inline-block; font-size: 10px; font-weight: 600; color: var(--violet);
-    background: rgba(139,92,246,0.08); border-radius: 4px; padding: 0 5px; margin-left: 4px;
+    display: inline-block; font-size: 11px; font-weight: 600; color: var(--blue);
+    border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; margin-left: 6px;
+    line-height: 1.4; vertical-align: 1px;
   }
-  .chart-toggle { float: right; }
-  .chart-toggle button { font-size: 11px; padding: 2px 10px; }
 
-  /* ---- STAT CARDS ---- */
+  /* ---- WARNINGS ---- */
+  .warnings-banner {
+    display: none; position: relative;
+    border-left: 3px solid var(--ochre); background: #F7F1DE;
+    padding: 10px 40px 10px 14px; margin-bottom: 20px;
+    font-size: 13px; color: #5C4A12; line-height: 1.55; border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .warnings-banner.visible { display: block; }
+  .warnings-banner strong { font-weight: 600; }
+  .warnings-banner ul { list-style: none; display: inline; }
+  .warnings-banner li { display: inline; }
+  .warnings-banner li + li::before { content: ' '; }
+  .warnings-banner .warn-close {
+    position: absolute; top: 6px; right: 8px;
+    background: none; border: none; cursor: pointer;
+    font-size: 18px; line-height: 1; color: #5C4A12; padding: 4px 6px; opacity: 0.6;
+  }
+  .warnings-banner .warn-close:hover { opacity: 1; }
+
+  /* ---- LEDGER LINE (stats) ---- */
   .stats-row {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px; margin-bottom: 32px;
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.35fr);
+    background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--radius);
+    margin-bottom: 28px; animation: rise 0.45s ease-out both;
   }
-
-  .stat-card {
-    background: var(--white); border-radius: var(--radius);
-    padding: 24px; position: relative;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-    transition: box-shadow 0.2s, transform 0.2s;
-  }
-  .stat-card:hover { box-shadow: var(--shadow-md); }
-  .stat-card .accent-bar {
-    position: absolute; top: 0; left: 0; right: 0; height: 3px;
-  }
+  .stat-card { padding: 18px 20px 20px; border-right: 1px solid var(--rule); min-width: 0; }
+  .stat-card:last-child { border-right: 0; }
   .stat-label {
-    font-size: 12px; font-weight: 600; color: var(--text-tertiary);
-    text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+    font-size: 13px; font-weight: 500; color: var(--ink-2); margin-bottom: 8px;
   }
   .stat-value {
-    font-size: 34px; font-weight: 800; letter-spacing: -2px;
-    line-height: 1; margin-bottom: 6px;
-    color: var(--text);
+    font-size: 30px; font-weight: 700; letter-spacing: -0.8px; line-height: 1.1;
+    margin-bottom: 8px; white-space: nowrap;
   }
-  .stat-sub { font-size: 13px; color: var(--text-tertiary); font-weight: 500; }
+  .stat-sub { font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
+  .stat-sub span { display: block; }
+  /* The total: red ink, accountant's double rule */
+  .stat-card.total { background: #FCF7F5; border-radius: 0 var(--radius) var(--radius) 0; }
+  .stat-card.total .stat-value {
+    color: var(--red); font-size: 38px; letter-spacing: -1.2px;
+    display: inline-block; padding-bottom: 3px;
+    border-bottom: 4px double var(--red);
+  }
+  @media (max-width: 960px) {
+    .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stat-card { border-bottom: 1px solid var(--rule); }
+    .stat-card:nth-child(2n) { border-right: 0; }
+    .stat-card.total { grid-column: 1 / -1; border-bottom: 0; border-radius: 0 0 var(--radius) var(--radius); }
+  }
 
   /* Tooltips */
-  .has-tooltip {
-    position: relative;
-    cursor: help;
-  }
+  .has-tooltip { position: relative; cursor: help; }
   .has-tooltip .tooltip {
-    position: absolute;
-    bottom: calc(100% + 10px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--text);
-    color: #F8FAFC;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1.5;
-    padding: 10px 14px;
-    border-radius: 10px;
-    white-space: normal;
-    width: max-content;
-    max-width: 280px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.15s, transform 0.15s;
-    transform: translateX(-50%) translateY(4px);
-    z-index: 100;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    text-transform: none;
-    letter-spacing: 0;
-    text-align: left;
+    position: absolute; bottom: calc(100% + 8px); left: 0;
+    background: var(--ink); color: var(--sheet);
+    font-size: 12.5px; font-weight: 400; line-height: 1.5;
+    padding: 9px 12px; border-radius: var(--radius);
+    white-space: normal; width: max-content; max-width: 280px;
+    pointer-events: none; opacity: 0; transition: opacity 0.12s;
+    z-index: 100; text-transform: none; letter-spacing: 0; text-align: left;
   }
-  .has-tooltip .tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 6px solid transparent;
-    border-top-color: var(--text);
-  }
-  .has-tooltip:hover .tooltip {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  /* For table headers, tooltip goes below */
-  .has-tooltip-below .tooltip {
-    bottom: auto;
-    top: calc(100% + 10px);
-  }
-  .has-tooltip-below .tooltip::after {
-    top: auto;
-    bottom: 100%;
-    border-top-color: transparent;
-    border-bottom-color: var(--text);
-  }
-  /* Help icon next to labels */
+  .has-tooltip:hover .tooltip, .has-tooltip:focus-within .tooltip { opacity: 1; }
+  .has-tooltip-below .tooltip { bottom: auto; top: calc(100% + 8px); }
+  .sessions-table th:last-child .tooltip, .sessions-table th.token-num .tooltip,
+  .sessions-table th[style*="right"] .tooltip { left: auto; right: 0; }
   .help-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 15px;
-    height: 15px;
-    border-radius: 50%;
-    background: rgba(0,0,0,0.06);
-    color: var(--text-tertiary);
-    font-size: 10px;
-    font-weight: 700;
-    margin-left: 5px;
-    vertical-align: middle;
-    flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0;
+    border: 1px solid var(--rule-strong); color: var(--ink-3);
+    font-size: 10px; font-weight: 700; line-height: 1;
   }
 
-  /* Token explainer */
-  /* ---- SECTION HEADINGS ---- */
-  .section-header {
-    display: flex; align-items: center; gap: 10px;
-    margin-bottom: 16px;
-  }
-  .section-icon {
-    width: 28px; height: 28px; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-  }
-  .section-icon svg { width: 16px; height: 16px; }
-  .section-title {
-    font-size: 16px; font-weight: 700; letter-spacing: -0.3px;
-  }
-
-  /* ---- INSIGHTS ---- */
-  .insights-section { margin-bottom: 32px; }
-  .insight-card {
-    background: var(--white); border-radius: var(--radius-sm);
-    padding: 14px 20px; margin-bottom: 8px;
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-    cursor: pointer; transition: box-shadow 0.2s;
-  }
-  .insight-card:hover { box-shadow: var(--shadow-md); }
-  .insight-top {
-    display: flex; align-items: center; gap: 12px;
-  }
-  .insight-arrow {
-    margin-left: auto; flex-shrink: 0;
-    width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
-    color: var(--text-tertiary); transition: transform 0.25s ease;
-  }
-  .insight-card.expanded .insight-arrow { transform: rotate(180deg); }
-  .insight-indicator {
-    width: 28px; height: 28px; border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; font-size: 14px;
-  }
-  .insight-card.warning .insight-indicator { background: linear-gradient(135deg, #FEF3C7, #FDE68A); }
-  .insight-card.info .insight-indicator { background: linear-gradient(135deg, #E0E7FF, #C7D2FE); }
-  .insight-card.neutral .insight-indicator { background: linear-gradient(135deg, #F1F5F9, #E2E8F0); }
-  .insight-title { font-size: 14px; font-weight: 700; line-height: 1.4; }
-  .insight-oneliner { font-size: 13px; color: var(--text-secondary); margin-left: auto; white-space: nowrap; font-weight: 500; }
-  .insight-expand {
-    max-height: 0; overflow: hidden; transition: max-height 0.3s ease;
-  }
-  .insight-card.expanded .insight-expand { max-height: 300px; }
-  .insight-detail {
-    font-size: 13px; color: var(--text-secondary); line-height: 1.65;
-    padding: 12px 0 4px 40px;
-    border-top: 1px solid var(--border); margin-top: 12px;
-  }
-  .insight-action-tip {
-    font-size: 13px; line-height: 1.6;
-    padding: 8px 0 0 40px; color: var(--indigo); font-weight: 600;
-  }
+  /* ---- SECTIONS ---- */
+  .section-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .section-icon { display: none; }
+  .section-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
 
   /* ---- CHARTS ---- */
   .charts-grid {
-    display: grid; grid-template-columns: 5fr 2fr;
-    gap: 16px; margin-bottom: 32px;
+    display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 2fr);
+    gap: 16px; margin-bottom: 28px; align-items: start;
   }
-  @media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
-
-  /* How Tokens Work */
-  .how-tokens {
-    background: var(--white); border-radius: var(--radius);
-    padding: 0; border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm); margin-bottom: 32px;
-    overflow: hidden;
-  }
-  .how-tokens-toggle {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 18px 24px; cursor: pointer; user-select: none;
-  }
-  .how-tokens-toggle:hover { background: rgba(0,0,0,0.015); }
-  .how-tokens-toggle h3 {
-    font-size: 13px; font-weight: 700; color: var(--text-tertiary);
-    text-transform: uppercase; letter-spacing: 0.5px; margin: 0;
-  }
-  .how-tokens-arrow {
-    color: var(--text-tertiary); transition: transform 0.2s;
-  }
-  .how-tokens.expanded .how-tokens-arrow { transform: rotate(180deg); }
-  .how-tokens-body {
-    max-height: 0; overflow: hidden; transition: max-height 0.35s ease;
-    padding: 0 24px;
-  }
-  .how-tokens.expanded .how-tokens-body {
-    max-height: 800px; padding: 0 24px 24px;
-  }
-  .how-tokens-body p {
-    font-size: 13.5px; line-height: 1.7; color: var(--text-secondary); margin: 0 0 20px;
-  }
-  .how-tokens-example {
-    background: var(--bg); border-radius: 10px; padding: 18px 20px; margin-bottom: 20px;
-  }
-  .how-tokens-example-title {
-    font-size: 12px; font-weight: 700; color: var(--text-tertiary);
-    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;
-  }
-  .how-tokens-step {
-    display: flex; align-items: baseline; gap: 10px;
-    padding: 6px 0; font-size: 13px; color: var(--text-secondary);
-  }
-  .step-label {
-    font-weight: 600; color: var(--text-primary); min-width: 80px; flex-shrink: 0;
-  }
-  .step-desc { flex: 1; }
-  .step-tokens { font-weight: 600; white-space: nowrap; }
-  .how-tokens-total {
-    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
-    font-size: 13px; font-weight: 600; color: var(--text-primary);
-  }
-  .how-tokens-types { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-  .how-tokens-type {
-    display: flex; align-items: flex-start; gap: 10px;
-    font-size: 13px; line-height: 1.6; color: var(--text-secondary);
-  }
-  .how-tokens-dot {
-    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px;
-  }
-  .how-tokens-tip {
-    background: linear-gradient(135deg, #EEF2FF, #E0E7FF); border-radius: 10px;
-    padding: 14px 18px; font-size: 13px; line-height: 1.6; color: var(--text-secondary);
-  }
-  .how-tokens-tip code {
-    background: rgba(99,102,241,0.1); padding: 2px 6px; border-radius: 4px;
-    font-size: 12px; font-weight: 600; color: var(--indigo);
-  }
-
+  @media (max-width: 860px) { .charts-grid { grid-template-columns: 1fr; } }
   .chart-card {
-    background: var(--white); border-radius: var(--radius);
-    padding: 24px; border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
+    background: var(--sheet); border: 1px solid var(--rule-strong);
+    border-radius: var(--radius); padding: 18px 20px 20px; min-width: 0;
   }
-  .chart-card h3 {
-    font-size: 13px; font-weight: 700; color: var(--text-tertiary);
-    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 20px;
-  }
-  canvas { display: block; }
+  .chart-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .chart-toggle { float: right; }
+  .chart-toggle button { font-size: 12px; padding: 3px 10px; }
   .legend {
-    display: flex; gap: 20px; margin-top: 16px;
-    font-size: 12px; font-weight: 500; color: var(--text-secondary);
+    display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px;
+    font-size: 12.5px; color: var(--ink-2);
   }
   .legend-item { display: flex; align-items: center; gap: 7px; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 4px; flex-shrink: 0; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  #modelLegend { margin-top: 0 !important; gap: 0 !important; }
+  .model-row { padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  .model-row:first-child { padding-top: 0; }
+  .model-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .model-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .model-row-top .model-badge { font-weight: 600; color: var(--ink); }
+  .model-row-cost { font-weight: 700; color: var(--red); white-space: nowrap; }
+  .model-row-bar { height: 4px; background: var(--hover); margin: 6px 0 4px; border-radius: 2px; overflow: hidden; }
+  .model-row-bar span { display: block; height: 100%; }
+  .model-row-sub { font-size: 12.5px; color: var(--ink-3); }
+  .model-row-cost.unpriced { color: var(--ink-3); font-weight: 500; }
+  .model-more { display: none; }
+  #modelLegend.show-all .model-more { display: block; }
+  .model-toggle {
+    margin-top: 12px; align-self: flex-start; background: none; border: 0; padding: 0; cursor: pointer;
+    font: 500 13px var(--font); color: var(--blue); text-decoration: underline; text-underline-offset: 3px;
+  }
+  .model-empty { font-size: 14px; color: var(--ink-3); }
+
+  /* ---- INSIGHTS ---- */
+  .insights-section { margin-bottom: 28px; }
+  #insightsList {
+    background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--radius);
+  }
+  .insight-card {
+    border-bottom: 1px solid var(--rule); border-left: 3px solid var(--ink-3);
+    padding: 12px 18px; cursor: pointer;
+  }
+  .insight-card:first-child { border-top-left-radius: var(--radius); }
+  .insight-card:last-child { border-bottom: 0; border-bottom-left-radius: var(--radius); }
+  .insight-card:hover { background: var(--hover); }
+  .insight-card.warning { border-left-color: var(--red); }
+  .insight-card.info { border-left-color: var(--blue); }
+  .insight-top { display: flex; align-items: center; gap: 12px; }
+  .insight-indicator { display: none; }
+  .insight-title { font-size: 14.5px; font-weight: 600; line-height: 1.4; }
+  .insight-arrow {
+    margin-left: auto; flex-shrink: 0; color: var(--ink-3);
+    display: flex; transition: transform 0.2s ease;
+  }
+  .insight-card.expanded .insight-arrow { transform: rotate(180deg); }
+  .insight-expand { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
+  .insight-card.expanded .insight-expand { max-height: 400px; }
+  .insight-detail {
+    font-size: 14px; color: var(--ink-2); line-height: 1.65; max-width: 76ch;
+    padding-top: 8px;
+  }
+  .insight-action-tip {
+    font-size: 14px; line-height: 1.6; max-width: 76ch;
+    padding-top: 6px; color: var(--ink); font-weight: 500;
+  }
 
   /* ---- TOP PROMPTS ---- */
-  .top-prompts { margin-bottom: 32px; }
-  .prompts-card {
-    background: var(--white); border-radius: var(--radius);
-    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
-    overflow: hidden;
+  .top-prompts { margin-bottom: 28px; }
+  .prompts-card, .sessions-card {
+    background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--radius);
   }
   .prompt-row {
-    display: grid; grid-template-columns: 36px 1fr auto;
-    gap: 14px; padding: 16px 24px; align-items: start;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer; transition: background 0.15s;
+    display: grid; grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 14px; padding: 12px 18px; align-items: start;
+    border-bottom: 1px solid var(--rule); cursor: pointer;
   }
   .prompt-row:last-child { border-bottom: none; }
-  .prompt-row:hover { background: #FAFBFF; }
-  .prompt-rank {
-    width: 28px; height: 28px; border-radius: 8px;
-    background: var(--bg); display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 700; color: var(--text-secondary);
-  }
-  .prompt-row:nth-child(1) .prompt-rank { background: var(--gradient-main); color: white; }
-  .prompt-row:nth-child(2) .prompt-rank { background: var(--gradient-teal); color: white; }
-  .prompt-row:nth-child(3) .prompt-rank { background: var(--gradient-warm); color: white; }
+  .prompt-row:hover { background: var(--hover); }
+  .prompt-rank { font-size: 13px; font-weight: 600; color: var(--ink-3); text-align: right; padding-top: 1px; }
   .prompt-text {
-    font-size: 14px; font-weight: 500; line-height: 1.5;
-    display: -webkit-box; -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical; overflow: hidden;
-  }
-  .prompt-meta { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; font-weight: 500; }
-  .token-bar-wrap {
-    display: flex; gap: 1px; height: 4px; margin-top: 8px;
-    border-radius: 4px; overflow: hidden;
-  }
-  .token-bar-in { background: var(--indigo); height: 100%; }
-  .token-bar-cache { background: var(--amber); height: 100%; }
-  .token-bar-out { background: var(--teal); height: 100%; }
-  .prompt-tokens { text-align: right; white-space: nowrap; padding-top: 2px; }
-  .prompt-tokens .value {
-    font-size: 16px; font-weight: 700; font-family: var(--mono);
-    letter-spacing: -0.5px;
-  }
-  .prompt-tokens .sub { font-size: 11px; color: var(--text-tertiary); font-weight: 500; margin-top: 2px; }
-
-  /* ---- PROJECTS ---- */
-  .projects-section { margin-bottom: 32px; }
-
-  /* Project accordion */
-  .proj-chevron {
-    width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
-    color: var(--text-tertiary); transition: transform 0.25s ease; flex-shrink: 0;
-  }
-  .proj-row { cursor: pointer; }
-  .proj-row:hover td { background: #FAFBFF; }
-  .proj-row.expanded .proj-chevron { transform: rotate(90deg); }
-  .proj-drawer td { padding: 0; border-bottom: 1px solid var(--border); }
-  .proj-drawer-inner { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; background: #FAFBFC; }
-  .proj-drawer.open .proj-drawer-inner { max-height: 600px; }
-  .proj-drawer-content { padding: 12px 16px 16px; }
-  .drawer-prompt-list { display: flex; flex-direction: column; gap: 8px; }
-  .drawer-prompt-row {
-    display: grid; grid-template-columns: 24px 1fr auto;
-    gap: 10px; padding: 10px 14px; align-items: start;
-    background: white; border: 1px solid var(--border); border-radius: 10px;
-    cursor: pointer; transition: box-shadow 0.15s;
-  }
-  .drawer-prompt-row:hover { box-shadow: var(--shadow-md); }
-  .drawer-rank {
-    width: 20px; height: 20px; border-radius: 6px;
-    background: var(--bg); display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; color: var(--text-secondary); flex-shrink: 0;
-  }
-  .drawer-prompt-text {
-    font-size: 13px; font-weight: 500; line-height: 1.5;
+    font-size: 14px; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     word-break: break-word;
   }
-  .drawer-prompt-meta { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 5px; }
-  .tool-chip {
-    background: var(--bg); border: 1px solid var(--border-strong);
-    padding: 1px 7px; border-radius: 6px; font-size: 10px; font-weight: 600;
-    color: var(--text-secondary); white-space: nowrap;
-  }
-  .drawer-tokens { text-align: right; white-space: nowrap; }
-  .drawer-tokens .value { font-family: var(--mono); font-size: 14px; font-weight: 700; }
-  .drawer-tokens .sub { font-size: 11px; color: var(--text-tertiary); font-weight: 500; margin-top: 2px; }
-  .drawer-empty { text-align: center; padding: 20px; color: var(--text-tertiary); font-size: 13px; font-weight: 500; }
+  .prompt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12.5px; color: var(--ink-3); margin-top: 3px; }
+  .prompt-meta .account-tag { margin-left: 0; }
+  .token-bar-wrap { display: flex; gap: 1px; height: 3px; margin-top: 8px; }
+  .token-bar-in { background: var(--t-input); height: 100%; }
+  .token-bar-write { background: var(--t-write); height: 100%; }
+  .token-bar-cache { background: var(--t-read); height: 100%; }
+  .token-bar-out { background: var(--t-output); height: 100%; }
+  .prompt-tokens { text-align: right; white-space: nowrap; }
+  .prompt-tokens .cost { font-size: 16px; font-weight: 700; color: var(--red); }
+  .prompt-tokens .value { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .prompt-tokens .sub { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
 
   /* ---- SESSIONS ---- */
-  .sessions-section { margin-bottom: 40px; }
+  .sessions-section { margin-bottom: 36px; }
   .sessions-toolbar {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 14px; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 10px; gap: 12px; flex-wrap: wrap;
   }
   .session-search {
-    background: var(--white); border: 1px solid var(--border);
-    color: var(--text); padding: 9px 16px; border-radius: 10px;
-    font-size: 14px; font-weight: 500; width: 300px; outline: none;
-    font-family: var(--font); transition: all 0.2s;
+    background: var(--sheet); border: 1px solid var(--rule-strong);
+    color: var(--ink); padding: 7px 12px; border-radius: var(--radius);
+    font: 400 14px var(--font); width: 320px; max-width: 100%;
   }
-  .session-search::placeholder { color: var(--text-tertiary); }
-  .session-search:focus { border-color: var(--indigo); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
-  .session-count { color: var(--text-tertiary); font-size: 13px; font-weight: 600; }
-
-  .sessions-card {
-    background: var(--white); border-radius: var(--radius);
-    border: 1px solid var(--border); box-shadow: var(--shadow-sm);
-    overflow: visible;
-  }
+  .session-search::placeholder { color: var(--ink-3); }
+  .session-search:focus { outline: 2px solid var(--blue); outline-offset: 0; border-color: transparent; }
+  .session-count { color: var(--ink-3); font-size: 13px; }
+  .sessions-card { overflow-x: auto; }
   .sessions-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .sessions-table th {
-    text-align: left; padding: 12px 16px;
-    font-size: 11px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.6px; color: var(--text-tertiary);
-    border-bottom: 1px solid var(--border);
+    text-align: left; padding: 10px 14px;
+    font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+    border-bottom: 1px solid var(--rule-strong);
     cursor: pointer; user-select: none; white-space: nowrap;
-    background: #FAFBFC;
   }
-  .sessions-table th:hover { color: var(--text-secondary); }
-  .sessions-table th.sorted { color: var(--indigo); }
-  .sessions-table td {
-    padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle;
-  }
-  .sessions-table tbody tr { cursor: pointer; transition: background 0.1s; }
-  .sessions-table tbody tr:hover td { background: #FAFBFF; }
+  .sessions-table th:hover { color: var(--ink); }
+  .sessions-table th.sorted { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+  .sessions-table td { padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+  .sessions-table tbody tr { cursor: pointer; }
+  .sessions-table tbody tr:hover td { background: var(--hover); }
   .sessions-table tbody tr:last-child td { border-bottom: none; }
-  .prompt-preview {
-    max-width: 340px; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; font-weight: 500;
+  .sessions-table td:last-child { color: var(--red); font-weight: 700; }
+  .prompt-preview { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .token-num { font-size: 13.5px; font-weight: 500; text-align: right; white-space: nowrap; }
+  .date-cell { white-space: nowrap; color: var(--ink-2); }
+  .project-tag {
+    font-size: 12px; color: var(--ink-3); display: block;
+    max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .token-num {
-    font-family: var(--mono); font-size: 13px; font-weight: 600;
-    text-align: right; white-space: nowrap; letter-spacing: -0.3px;
-  }
+
+  /* Model badges: a colored rule, not a pill */
   .model-badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 3px 10px; border-radius: 20px;
-    font-size: 12px; font-weight: 600;
-    transition: box-shadow 0.15s;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; white-space: nowrap;
   }
-  .model-badge:focus-visible { outline: 2px solid var(--indigo); outline-offset: 2px; }
-  /* Contrast-corrected badge colors (WCAG AA compliant) */
-  .model-opus { background: #EEF2FF; color: #3730A3; }
-  .model-sonnet { background: #ECFDF5; color: #047857; }
-  .model-haiku { background: #FFF7ED; color: #C2410C; }
-  .model-fable { background: #FDF2F8; color: #BE185D; }
-  .model-unknown { background: #F1F5F9; color: #475569; }
-  .model-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-  .model-opus .model-dot { background: #4F46E5; }
-  .model-sonnet .model-dot { background: #10B981; }
-  .model-haiku .model-dot { background: #F97316; }
-  .model-fable .model-dot { background: #EC4899; }
-  .model-unknown .model-dot { background: #94A3B8; }
-  /* Sub-line pills in project rows — compact variant */
-  .model-pills {
-    list-style: none; padding: 0; margin: 5px 0 0;
-    display: flex; flex-wrap: wrap; gap: 4px;
-  }
-  .model-pills li { display: flex; }
-  .model-pills .model-badge {
-    padding: 2px 8px; font-size: 11px; border-radius: 10px;
-  }
-  /* Screen-reader-only label (WCAG 2.1 compliant) */
+  .model-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; background: var(--ink-3); }
+  .model-opus .model-dot { background: var(--blue); }
+  .model-sonnet .model-dot { background: var(--green); }
+  .model-haiku .model-dot { background: var(--ochre); }
+  .model-fable .model-dot { background: var(--red); }
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0;
-    margin: -1px; overflow: hidden; clip: rect(0,0,0,0);
-    white-space: nowrap; border-width: 0;
-  }
-  /* Inline ↓in ↑out token pair inside a model badge */
-  .token-detail {
-    display: inline-flex; align-items: center; gap: 2px;
-    font-size: 10px; font-weight: 600; opacity: 0.9;
-  }
-  /* Project name styled as path */
-  .proj-name {
-    font-weight: 600; font-size: 13px;
-    font-family: var(--mono); letter-spacing: -0.2px; color: var(--text);
-  }
-  .date-cell { white-space: nowrap; color: var(--text-secondary); font-weight: 500; }
-  .project-tag {
-    font-size: 11px; color: var(--text-tertiary); display: block;
-    margin-top: 1px; font-weight: 500;
-    max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
   }
 
   /* ---- DRILLDOWN ---- */
   .drilldown {
-    background: var(--white); border-radius: var(--radius);
-    padding: 28px; margin-bottom: 32px; display: none;
-    border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+    background: var(--sheet); border: 1px solid var(--ink-3); border-radius: var(--radius);
+    padding: 20px 22px; margin-bottom: 28px; display: none;
   }
-  .drilldown.open { display: block; animation: fadeUp 0.3s ease-out; }
-  .drilldown-header {
-    display: flex; align-items: flex-start; justify-content: space-between;
-    margin-bottom: 24px; gap: 16px;
-  }
-  .drilldown-title { font-size: 16px; font-weight: 700; line-height: 1.4; }
-  .drilldown-meta { font-size: 13px; color: var(--text-tertiary); margin-top: 4px; font-weight: 500; }
+  .drilldown.open { display: block; }
+  .drilldown-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  .drilldown-title { font-size: 17px; font-weight: 700; line-height: 1.4; max-width: 80ch; }
+  .drilldown-meta { font-size: 13px; color: var(--ink-2); margin-top: 4px; }
   .drilldown-close {
-    background: var(--bg); border: none; color: var(--text-secondary);
-    width: 32px; height: 32px; border-radius: 8px; cursor: pointer;
-    font-size: 18px; display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; transition: all 0.15s;
+    background: transparent; border: 1px solid var(--rule-strong); color: var(--ink-2);
+    width: 30px; height: 30px; border-radius: var(--radius); cursor: pointer;
+    font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
-  .drilldown-close:hover { background: #EEF2FF; color: var(--indigo); }
-
-  .query-list { display: flex; flex-direction: column; gap: 8px; }
+  .drilldown-close:hover { color: var(--ink); border-color: var(--ink-3); }
+  .drilldown h3 { font-size: 14px !important; font-weight: 600 !important; color: var(--ink) !important; text-transform: none !important; letter-spacing: 0 !important; }
+  #turnChartInsight { border-radius: var(--radius) !important; }
+  .query-list { border-top: 1px solid var(--rule); }
   .query-item {
-    display: grid; grid-template-columns: 36px 1fr auto;
-    gap: 14px; padding: 14px 16px; border-radius: var(--radius-sm);
-    background: var(--bg); align-items: start;
-    transition: background 0.1s;
+    display: grid; grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 14px; padding: 10px 4px; align-items: start; border-bottom: 1px solid var(--rule);
   }
-  .query-item:hover { background: #EEF2FF; }
-  .query-num {
-    width: 28px; height: 28px; border-radius: 8px; background: var(--white);
-    border: 1px solid var(--border);
-    font-size: 12px; font-weight: 700; color: var(--text-tertiary);
-    display: flex; align-items: center; justify-content: center;
+  .query-item:hover { background: var(--hover); }
+  .query-num { font-size: 13px; font-weight: 600; color: var(--ink-3); text-align: right; }
+  .query-prompt { font-size: 14px; line-height: 1.5; word-break: break-word; max-width: 80ch; }
+  .query-tokens-col { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; white-space: nowrap; }
+  .query-tokens-col .total { font-size: 15px; font-weight: 700; color: var(--red); }
+  .query-tokens-col .detail { font-size: 12px; color: var(--ink-3); }
+
+  /* ---- HOW TOKENS WORK (reference, at the end) ---- */
+  .how-tokens {
+    background: var(--sheet); border: 1px solid var(--rule-strong);
+    border-radius: var(--radius); margin-bottom: 28px; overflow: hidden;
   }
-  .query-prompt { font-size: 14px; font-weight: 500; line-height: 1.5; word-break: break-word; }
-  .query-prompt.no-prompt { color: var(--text-tertiary); font-style: italic; font-weight: 400; }
-  .query-tokens-col { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
-  .query-tokens-col .total { font-family: var(--mono); font-size: 14px; font-weight: 700; }
-  .query-tokens-col .detail { font-size: 12px; color: var(--text-tertiary); font-weight: 500; }
+  .how-tokens-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; cursor: pointer; user-select: none;
+  }
+  .how-tokens-toggle:hover { background: var(--hover); }
+  .how-tokens-toggle h3 { font-size: 15px; font-weight: 600; }
+  .how-tokens-arrow { color: var(--ink-3); transition: transform 0.2s; display: flex; }
+  .how-tokens.expanded .how-tokens-arrow { transform: rotate(180deg); }
+  .how-tokens-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; padding: 0 18px; }
+  .how-tokens.expanded .how-tokens-body { max-height: 900px; padding: 0 18px 20px; }
+  .how-tokens-body p { font-size: 14px; line-height: 1.65; color: var(--ink-2); margin: 0 0 16px; max-width: 76ch; }
+  .how-tokens-example { border: 1px solid var(--rule); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px; }
+  .how-tokens-example-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .how-tokens-step { display: flex; align-items: baseline; gap: 12px; padding: 6px 0; font-size: 14px; color: var(--ink-2); border-bottom: 1px solid var(--rule); }
+  .step-label { font-weight: 600; color: var(--ink); min-width: 84px; flex-shrink: 0; }
+  .step-desc { flex: 1; }
+  .step-tokens { font-weight: 600; white-space: nowrap; color: var(--ink); }
+  .how-tokens-total { margin-top: 10px; font-size: 14px; color: var(--ink); }
+  .how-tokens-types { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .how-tokens-type { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.55; color: var(--ink-2); }
+  .how-tokens-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; margin-top: 6px; }
+  .how-tokens-tip { border-left: 3px solid var(--blue); padding: 4px 0 4px 12px; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+  .how-tokens-tip code { font-size: 13px; font-weight: 600; color: var(--ink); background: var(--hover); padding: 1px 5px; border-radius: 3px; }
 
   /* ---- FOOTER ---- */
   .footer {
-    text-align: center; padding: 24px;
-    color: var(--text-tertiary); font-size: 13px; font-weight: 500;
+    border-top: 1px solid var(--rule); padding-top: 16px;
+    color: var(--ink-3); font-size: 13px; line-height: 1.7;
   }
-  .footer a { color: var(--indigo); text-decoration: none; font-weight: 600; }
-  .footer a:hover { text-decoration: underline; }
-
-  /* Privacy notice */
-  .privacy-notice {
-    display: flex; align-items: center; justify-content: center; gap: 6px;
-    font-size: 13px; font-weight: 500; color: var(--text-secondary);
-    background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.1);
-    padding: 8px 16px; border-radius: 10px; margin-bottom: 20px;
-  }
-
-  /* Hero / value prop */
-  .hero-section {
-    text-align: center; margin-bottom: 36px; padding: 0 20px;
-  }
-  .hero-title {
-    font-size: 38px; font-weight: 800; letter-spacing: -1.5px;
-    background: var(--gradient-main); -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent; background-clip: text;
-    margin-bottom: 10px; line-height: 1.3;
-  }
-  .hero-subtitle {
-    font-size: 15px; color: var(--text-secondary); font-weight: 500;
-    max-width: 600px; margin: 0 auto; line-height: 1.7;
-  }
-
-  /* Warnings banner */
-  .warnings-banner {
-    background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px;
-    padding: 10px 16px; margin-bottom: 16px; font-size: 13px;
-    color: #92400E; line-height: 1.6; display: none;
-  }
-  .warnings-banner.visible { display: block; }
-  .warnings-banner .warn-close {
-    float: right; background: none; border: none; cursor: pointer;
-    font-size: 16px; color: #92400E; padding: 0 4px; margin-left: 8px;
-    opacity: 0.6; transition: opacity 0.15s;
-  }
-  .warnings-banner .warn-close:hover { opacity: 1; }
-  .warnings-banner ul { margin: 4px 0 0 16px; padding: 0; }
-  .warnings-banner li { margin-bottom: 2px; }
+  .footer a { color: var(--ink-2); }
+  .privacy-notice, .hero-section { display: none; }
 
   /* Share card overlay */
   .share-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    position: fixed; inset: 0; background: rgba(28,39,51,0.55);
     display: none; align-items: center; justify-content: center; z-index: 1000;
-    backdrop-filter: blur(4px);
   }
   .share-overlay.open { display: flex; }
   .share-modal {
-    background: var(--white); border-radius: var(--radius); padding: 24px;
-    max-width: 680px; width: 90%; box-shadow: var(--shadow-lg);
+    background: var(--sheet); border-radius: var(--radius); padding: 20px;
+    max-width: 680px; width: 92%;
   }
-  .share-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
-  .share-modal canvas { width: 100%; border-radius: 8px; border: 1px solid var(--border); }
-  .share-actions { display: flex; gap: 10px; margin-top: 16px; justify-content: flex-end; }
-  .share-actions button {
-    padding: 8px 20px; border-radius: 10px; font-size: 14px; font-weight: 600;
-    cursor: pointer; font-family: var(--font); transition: all 0.2s;
-  }
-  .btn-download {
-    background: var(--gradient-main); color: white; border: none;
-    box-shadow: 0 2px 8px rgba(99,102,241,0.3);
-  }
-  .btn-download:hover { box-shadow: 0 4px 16px rgba(99,102,241,0.4); transform: translateY(-1px); }
-  .btn-cancel { background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); }
-  .btn-cancel:hover { border-color: var(--border-strong); }
+  .share-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+  .share-modal canvas { width: 100%; border-radius: 4px; border: 1px solid var(--rule); }
+  .share-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+  .share-actions button { padding: 7px 16px; border-radius: var(--radius); font: 600 14px var(--font); cursor: pointer; }
+  .btn-download { background: var(--ink); color: var(--sheet); border: 1px solid var(--ink); }
+  .btn-download:hover { background: #2B3A4A; }
+  .btn-cancel { background: transparent; border: 1px solid var(--rule-strong); color: var(--ink-2); }
+  .btn-cancel:hover { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -713,19 +449,11 @@
 
 <div id="app" class="container" style="display:none">
 
-  <!-- Privacy notice -->
-  <div class="privacy-notice animate">
-    &#128274; All data stays on your machine. Nothing is sent anywhere.
-  </div>
-
-  <!-- Warnings banner -->
-  <div id="warningsBanner" class="warnings-banner"></div>
-
   <!-- Header -->
-  <div class="header animate">
+  <div class="header">
     <div class="header-left">
       <div class="logo-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FBFCF9" stroke-width="2.5" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       </div>
       <h1>Claude Spend</h1>
     </div>
@@ -733,7 +461,7 @@
       <span id="dateRange" class="date-range"></span>
       <button class="refresh-btn" onclick="generateShareCard()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Share Stats
+        Share stats
       </button>
       <button class="refresh-btn" onclick="refreshData()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
@@ -743,126 +471,63 @@
   </div>
 
   <!-- Filters -->
-  <div class="filter-bar animate">
-    <div class="filter-group" id="rangePresets">
+  <div class="filter-bar">
+    <div class="filter-group" id="rangePresets" role="group" aria-label="Date range">
       <button data-days="1">Today</button>
-      <button data-days="7">7d</button>
-      <button data-days="30">30d</button>
-      <button data-days="90">90d</button>
-      <button data-days="all">All</button>
+      <button data-days="7">7 days</button>
+      <button data-days="30">30 days</button>
+      <button data-days="90">90 days</button>
+      <button data-days="all">All time</button>
     </div>
-    <input type="date" id="fromDate" title="From (inclusive)">
+    <input type="date" id="fromDate" aria-label="From date" title="From (inclusive)">
     <span class="filter-sep">to</span>
-    <input type="date" id="toDate" title="To (inclusive)">
-    <select id="accountSelect" title="Account" style="display:none"></select>
+    <input type="date" id="toDate" aria-label="To date" title="To (inclusive)">
+    <select id="accountSelect" aria-label="Account" title="Account" style="display:none"></select>
   </div>
 
-  <!-- Value proposition -->
-  <div class="hero-section animate delay-1">
-    <h2 class="hero-title">Your Claude Code usage, visualized.</h2>
-    <p class="hero-subtitle">See where your tokens actually go.</p>
-  </div>
+  <!-- Warnings banner -->
+  <div id="warningsBanner" class="warnings-banner"></div>
 
-  <!-- How Tokens Work -->
-  <div class="how-tokens animate delay-1">
-    <div class="how-tokens-toggle" onclick="this.parentElement.classList.toggle('expanded')">
-      <h3>How Claude Code tokens work</h3>
-      <div class="how-tokens-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
-    </div>
-    <div class="how-tokens-body">
-      <p>Every time you send a message, Claude doesn't just read your latest message. It re-reads your <strong>entire conversation</strong> from the beginning. That's why tokens add up fast.</p>
-
-      <div class="how-tokens-example">
-        <div class="how-tokens-example-title">Example: A 3-message conversation</div>
-        <div class="how-tokens-step">
-          <span class="step-label">Message 1</span>
-          <span class="step-desc">You send "Help me fix this bug." Claude reads your message fresh (<span style="color:var(--indigo)">input</span>) and saves the conversation to cache (<span style="color:var(--rose)">cache write</span>).</span>
-          <span class="step-tokens">~4K tokens</span>
-        </div>
-        <div class="how-tokens-step">
-          <span class="step-label">Message 2</span>
-          <span class="step-desc">You reply "Try the other file." Claude reuses message 1 from cache (<span style="color:var(--amber)">cache read</span> — 10x cheaper) and only processes your new message fresh (<span style="color:var(--indigo)">input</span>). Then saves the updated conversation (<span style="color:var(--rose)">cache write</span>).</span>
-          <span class="step-tokens">~8K tokens</span>
-        </div>
-        <div class="how-tokens-step">
-          <span class="step-label">Message 3</span>
-          <span class="step-desc">Claude reuses messages 1-2 from cache (<span style="color:var(--amber)">cache read</span>) and processes your new message fresh (<span style="color:var(--indigo)">input</span>). Claude's reply is <span style="color:var(--teal)">output</span>.</span>
-          <span class="step-tokens">~14K tokens</span>
-        </div>
-        <div class="how-tokens-total">Without caching, every message would be processed at full price. Cache reads save you up to 10x on repeated context.</div>
-      </div>
-
-      <div class="how-tokens-types">
-        <div class="how-tokens-type">
-          <div class="how-tokens-dot" style="background:var(--indigo)"></div>
-          <div><strong>Input</strong> — Your message + conversation history, processed fresh. Full price.</div>
-        </div>
-        <div class="how-tokens-type">
-          <div class="how-tokens-dot" style="background:var(--rose)"></div>
-          <div><strong>Cache writes</strong> — Claude saves your conversation so it doesn't re-process everything next time. Costs 1.25x input for a 5-minute cache, or 2x for the 1-hour cache Claude Code mostly uses.</div>
-        </div>
-        <div class="how-tokens-type">
-          <div class="how-tokens-dot" style="background:var(--amber)"></div>
-          <div><strong>Cache reads</strong> — Follow-up messages reuse the saved context. 10x cheaper than input. More cache reads = more savings.</div>
-        </div>
-        <div class="how-tokens-type">
-          <div class="how-tokens-dot" style="background:var(--teal)"></div>
-          <div><strong>Output</strong> — What Claude writes back. Most expensive per token, but usually the smallest amount.</div>
-        </div>
-      </div>
-
-      <div class="how-tokens-tip">
-        <strong>Tip:</strong> Use <code>/clear</code> when switching tasks. It resets the conversation so Claude stops re-reading old context you no longer need.
-      </div>
-    </div>
-  </div>
-
-  <!-- Stats -->
+  <!-- Ledger line -->
   <div class="stats-row" id="statsRow"></div>
 
-  <!-- Insights -->
-  <div id="insightsSection" class="insights-section" style="display:none">
-    <div class="section-header animate">
-      <div class="section-icon" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5" stroke-linecap="round"><path d="M12 2a7 7 0 0 1 4 12.75V17a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-2.25A7 7 0 0 1 12 2z"/><path d="M9 21h6"/></svg>
-      </div>
-      <div class="section-title">Insights</div>
-    </div>
-    <div id="insightsList"></div>
-  </div>
-
   <!-- Charts -->
-  <div class="charts-grid animate delay-3">
+  <div class="charts-grid">
     <div class="chart-card">
-      <div class="filter-group chart-toggle" id="dailyMetric">
+      <div class="filter-group chart-toggle" id="dailyMetric" role="group" aria-label="Chart metric">
         <button data-metric="tokens" class="active">Tokens</button>
         <button data-metric="cost">Cost</button>
       </div>
-      <h3 id="dailyChartTitle" class="has-tooltip has-tooltip-below" style="display:inline-block">Tokens per Day<div class="tooltip">How many tokens you used each day, broken down by type, or the API-equivalent cost of each day.</div></h3>
+      <h3 id="dailyChartTitle">Tokens per day</h3>
       <canvas id="dailyChart"></canvas>
       <div class="legend" id="dailyLegend">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--indigo)"></div> Input</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--rose)"></div> Cache writes</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div> Cache reads</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--teal)"></div> Output</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--t-input)"></div> Input</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--t-write)"></div> Cache writes</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--t-read)"></div> Cache reads</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--t-output)"></div> Output</div>
       </div>
     </div>
     <div class="chart-card">
-      <h3>By Model</h3>
+      <h3>By model</h3>
       <canvas id="modelChart"></canvas>
-      <div id="modelLegend" class="legend" style="flex-direction:column; gap:12px; margin-top:20px;"></div>
+      <div id="modelLegend" class="legend" style="flex-direction:column; gap:8px; margin-top:16px;"></div>
     </div>
+  </div>
+
+  <!-- Insights -->
+  <div id="insightsSection" class="insights-section" style="display:none">
+    <div class="section-header">
+      <h2 class="section-title">Insights</h2>
+    </div>
+    <div id="insightsList"></div>
   </div>
 
   <!-- Projects (temporarily hidden - TODO: fix prompt extraction) -->
 
   <!-- Most Expensive Prompts -->
-  <div class="top-prompts animate delay-4">
+  <div class="top-prompts">
     <div class="section-header">
-      <div class="section-icon" style="background:linear-gradient(135deg,#E0E7FF,#C7D2FE)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#6366F1" stroke-width="2.5" stroke-linecap="round"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
-      </div>
-      <div class="section-title has-tooltip has-tooltip-below" style="display:inline-flex">Most Expensive Prompts<div class="tooltip">Your top 20 individual messages ranked by how many tokens they used. Short vague messages like "Yes" often rank highest because they trigger long chains of tool calls where Claude tries to figure out what you meant.</div></div>
+      <h2 class="section-title has-tooltip has-tooltip-below">Most expensive prompts<div class="tooltip">Your top 20 turns ranked by API-equivalent cost. A turn is your message plus every tool call and subagent run it started.</div></h2>
     </div>
     <div class="prompts-card" id="topPromptsList"></div>
   </div>
@@ -874,30 +539,27 @@
         <div id="drilldownTitle" class="drilldown-title"></div>
         <div id="drilldownMeta" class="drilldown-meta"></div>
       </div>
-      <button class="drilldown-close" onclick="closeDrilldown()">&times;</button>
+      <button class="drilldown-close" onclick="closeDrilldown()" aria-label="Close session">&times;</button>
     </div>
-    <div id="turnChartWrap" style="margin-bottom:20px;display:none">
-      <h3 style="font-size:13px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.5px;margin:0 0 2px">Cost per turn</h3>
-      <span style="display:block;font-size:11px;color:var(--text-tertiary);margin:0 0 10px;opacity:0.7">Each dot is one turn (your message + Claude's full response). Y-axis shows API-equivalent cost. You don't pay this on a subscription, but it shows how much work each turn requires.</span>
+    <div id="turnChartWrap" style="margin-bottom:16px;display:none">
+      <h3 style="margin:0 0 2px">Cost per turn</h3>
+      <span style="display:block;font-size:13px;color:var(--ink-3);margin:0 0 10px">Each dot is one turn: your message and Claude's full response. Costs are API-equivalent.</span>
       <canvas id="turnCostChart"></canvas>
     </div>
-    <div id="turnChartInsight" style="display:none;margin-bottom:16px;padding:10px 14px;border-radius:8px;background:linear-gradient(135deg,rgba(245,158,11,0.08),rgba(244,63,94,0.06));border:1px solid rgba(245,158,11,0.15)">
-      <div style="font-size:12px;font-weight:600;color:#D97706;margin-bottom:3px" id="turnChartInsightTitle"></div>
-      <div style="font-size:11px;color:var(--text-secondary);line-height:1.5" id="turnChartInsightBody"></div>
+    <div id="turnChartInsight" style="display:none;margin-bottom:16px;padding:10px 14px;border:1px solid var(--rule)">
+      <div style="font-size:14px;font-weight:600;margin-bottom:3px" id="turnChartInsightTitle"></div>
+      <div style="font-size:13px;color:var(--ink-2);line-height:1.55;max-width:80ch" id="turnChartInsightBody"></div>
     </div>
     <div id="queryList" class="query-list"></div>
   </div>
 
   <!-- All Sessions -->
-  <div class="sessions-section animate delay-5">
+  <div class="sessions-section">
     <div class="section-header">
-      <div class="section-icon" style="background:linear-gradient(135deg,#ECFDF5,#D1FAE5)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>
-      </div>
-      <div class="section-title">All Sessions</div>
+      <h2 class="section-title">Sessions</h2>
     </div>
     <div class="sessions-toolbar">
-      <input type="text" class="session-search" id="searchInput" placeholder="Search prompts, models, projects...">
+      <input type="search" class="session-search" id="searchInput" placeholder="Search prompts, models, projects, accounts" aria-label="Search sessions">
       <span id="sessionCount" class="session-count"></span>
     </div>
     <div class="sessions-card">
@@ -906,12 +568,12 @@
           <tr>
             <th data-sort="date">Date</th>
             <th data-sort="prompt">What you asked</th>
-            <th data-sort="model" class="has-tooltip has-tooltip-below">Model<div class="tooltip">Which AI model was used. Opus is the most capable (and uses more tokens), Sonnet is faster and lighter.</div></th>
-            <th data-sort="queries" style="text-align:right" class="has-tooltip has-tooltip-below">Messages<div class="tooltip">How many back-and-forth messages happened in this conversation, including automatic tool calls Claude made.</div></th>
-            <th data-sort="total" style="text-align:right" class="sorted has-tooltip has-tooltip-below">Total tokens<div class="tooltip">The total number of tokens used in this conversation. Higher means more expensive. Long conversations cost more because Claude re-reads everything each turn.</div></th>
-            <th data-sort="input" style="text-align:right" class="has-tooltip has-tooltip-below">Read<div class="tooltip">Tokens Claude read: your messages, the conversation history, files, and system context. This grows with each message because the full history gets re-sent.</div></th>
-            <th data-sort="output" style="text-align:right" class="has-tooltip has-tooltip-below">Written<div class="tooltip">Tokens Claude wrote back: responses, code, explanations. Usually a small fraction of the total.</div></th>
-            <th data-sort="cost" style="text-align:right" class="has-tooltip has-tooltip-below">Cost<div class="tooltip">API-equivalent cost, including subagents this conversation started. You don't pay this on a subscription.</div></th>
+            <th data-sort="model" class="has-tooltip has-tooltip-below">Model<div class="tooltip">The model used for most of this conversation.</div></th>
+            <th data-sort="queries" style="text-align:right" class="has-tooltip has-tooltip-below">Messages<div class="tooltip">Responses in this conversation, including automatic tool calls and subagent work.</div></th>
+            <th data-sort="total" style="text-align:right" class="has-tooltip has-tooltip-below">Tokens<div class="tooltip">All tokens in this conversation. Long conversations cost more because Claude re-reads everything each turn.</div></th>
+            <th data-sort="input" style="text-align:right" class="has-tooltip has-tooltip-below">Read<div class="tooltip">Fresh input tokens: your messages and new context. Cached context is counted in Tokens.</div></th>
+            <th data-sort="output" style="text-align:right" class="has-tooltip has-tooltip-below">Written<div class="tooltip">Tokens Claude wrote back: responses, code, explanations.</div></th>
+            <th data-sort="cost" style="text-align:right" class="sorted has-tooltip has-tooltip-below">Cost<div class="tooltip">API-equivalent cost, including subagents this conversation started. Subscriptions bill differently.</div></th>
           </tr>
         </thead>
         <tbody id="sessionsBody"></tbody>
@@ -919,9 +581,63 @@
     </div>
   </div>
 
+  <!-- How Tokens Work -->
+  <div class="how-tokens">
+    <div class="how-tokens-toggle" role="button" tabindex="0" onclick="this.parentElement.classList.toggle('expanded')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
+      <h3>How Claude Code tokens work</h3>
+      <div class="how-tokens-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
+    </div>
+    <div class="how-tokens-body">
+      <p>Every time you send a message, Claude re-reads your entire conversation from the beginning, not just your latest message. That's why tokens add up fast.</p>
+
+      <div class="how-tokens-example">
+        <div class="how-tokens-example-title">A 3-message conversation</div>
+        <div class="how-tokens-step">
+          <span class="step-label">Message 1</span>
+          <span class="step-desc">You send "Help me fix this bug." Claude reads it fresh (<span style="color:var(--t-input)">input</span>) and saves the conversation to cache (<span style="color:var(--t-write)">cache write</span>).</span>
+          <span class="step-tokens">~4K tokens</span>
+        </div>
+        <div class="how-tokens-step">
+          <span class="step-label">Message 2</span>
+          <span class="step-desc">You reply "Try the other file." Claude reuses message 1 from cache (<span style="color:var(--t-read)">cache read</span>), processes only your new message fresh (<span style="color:var(--t-input)">input</span>), then saves the updated conversation (<span style="color:var(--t-write)">cache write</span>).</span>
+          <span class="step-tokens">~8K tokens</span>
+        </div>
+        <div class="how-tokens-step">
+          <span class="step-label">Message 3</span>
+          <span class="step-desc">Claude reuses messages 1–2 from cache (<span style="color:var(--t-read)">cache read</span>) and processes your new message fresh (<span style="color:var(--t-input)">input</span>). Claude's reply is <span style="color:var(--t-output)">output</span>.</span>
+          <span class="step-tokens">~14K tokens</span>
+        </div>
+        <div class="how-tokens-total">Without caching, every message would be processed at full price.</div>
+      </div>
+
+      <div class="how-tokens-types">
+        <div class="how-tokens-type">
+          <div class="how-tokens-dot" style="background:var(--t-input)"></div>
+          <div><strong>Input:</strong> your message and new context, processed fresh at full price.</div>
+        </div>
+        <div class="how-tokens-type">
+          <div class="how-tokens-dot" style="background:var(--t-write)"></div>
+          <div><strong>Cache writes:</strong> Claude saves the conversation so it doesn't re-process it next time. 1.25x input for a 5-minute cache, 2x for the 1-hour cache Claude Code mostly uses.</div>
+        </div>
+        <div class="how-tokens-type">
+          <div class="how-tokens-dot" style="background:var(--t-read)"></div>
+          <div><strong>Cache reads:</strong> follow-up messages reuse the saved context at 10x to 40x less than input, depending on the model.</div>
+        </div>
+        <div class="how-tokens-type">
+          <div class="how-tokens-dot" style="background:var(--t-output)"></div>
+          <div><strong>Output:</strong> what Claude writes back. The most expensive per token, usually the smallest amount.</div>
+        </div>
+      </div>
+
+      <div class="how-tokens-tip">
+        Use <code>/clear</code> when you switch tasks. It resets the conversation so Claude stops re-reading context you no longer need.
+      </div>
+    </div>
+  </div>
+
   <div class="footer">
-    <div style="margin-bottom: 8px; color: var(--text-secondary); font-size: 13px;">This tool runs 100% locally -- no analytics, no tracking. If you find it useful (or not), I'd love to hear from you at <a href="mailto:writetoaniketparihar@gmail.com">writetoaniketparihar@gmail.com</a></div>
-    Made with <a href="https://claude.ai/code" target="_blank">Claude Code</a> and &#10084; by <a href="https://www.linkedin.com/in/writetoaniketparihar/" target="_blank">Aniket</a>
+    Runs entirely on your machine: it reads your local Claude Code files and sends nothing anywhere. Costs are API list-price equivalents, not your plan's bill.<br>
+    Originally made by <a href="https://www.linkedin.com/in/writetoaniketparihar/" target="_blank" rel="noopener">Aniket</a>, maintained at <a href="https://github.com/myselfshravan/claude-spend" target="_blank" rel="noopener">myselfshravan/claude-spend</a>.
   </div>
 </div>
 
@@ -939,7 +655,19 @@
 
 <script>
 let DATA = null;
-let currentSort = { key: 'total', dir: 'desc' };
+let currentSort = { key: 'cost', dir: 'desc' };
+
+// Canvas colors, read from the CSS tokens so charts match the page
+const INK = (() => {
+  const css = getComputedStyle(document.documentElement);
+  const v = name => css.getPropertyValue(name).trim();
+  return {
+    ink: v('--ink'), ink2: v('--ink-2'), ink3: v('--ink-3'), rule: v('--rule'), ruleStrong: v('--rule-strong'),
+    red: v('--red'), blue: v('--blue'), green: v('--green'), ochre: v('--ochre'), sheet: v('--sheet'),
+    input: v('--blue'), write: v('--t-write'), read: v('--t-read'), output: v('--green'),
+  };
+})();
+const CHART_FONT = "'Schibsted Grotesk', system-ui, sans-serif";
 let searchQuery = '';
 let dailyMetric = 'tokens';
 
@@ -1018,7 +746,8 @@ function modelShort(m) {
 }
 function projectShort(p) {
   // Strip Windows drive prefix (e.g. D-- or C--)
-  let s = p.replace(/^[A-Za-z]--/, '');
+  let s = p.replace(/^[A-Za-z]--/, '').replace(/^-+/, '');
+  if (/^(?:Users|home)-[^-]+$/.test(s)) return '~';
   // Iteratively strip known parent directory segments
   const known = /^(?:Users|home|user)-[^-]+-|^(?:GitHub|GitLab|git|Projects|projects|workspace|Workspace|Desktop|Documents|source|src|dev|Dev|code|Code|repos|Repos)-/;
   let prev;
@@ -1088,7 +817,7 @@ function renderWarnings() {
   if (!warnings.length) { banner.classList.remove('visible'); return; }
   banner.classList.add('visible');
   banner.innerHTML = '<button class="warn-close" onclick="this.parentElement.classList.remove(\'visible\')">&times;</button>' +
-    '<strong>Heads up:</strong><ul>' + warnings.map(w => '<li>' + escapeHtml(w.message) + '</li>').join('') + '</ul>';
+    '<strong>Heads up:</strong> <ul>' + warnings.map(w => '<li>' + escapeHtml(w.message) + '</li>').join('') + '</ul>';
 }
 async function refreshData() {
   document.getElementById('loading').style.display = 'flex';
@@ -1184,30 +913,32 @@ function renderStats() {
 
   const avgTokensPerMsg = t.totalQueries > 0 ? Math.round(t.totalTokens / t.totalQueries) : 0;
   const days = (DATA.dailyUsage || []).length;
-  const costSub = [
-    days > 0 ? `~${fmtCost(t.totalCost / days)} per active day` : '',
-    t.totalSubagentCost > 0 ? `${fmtCost(t.totalSubagentCost)} from subagents` : '',
-    t.unpricedTokens > 0 ? `${fmt(t.unpricedTokens)} tokens unpriced` : '',
-  ].filter(Boolean).join(' · ');
 
+  // Read left to right like a ledger line; the cost total comes last
   const cards = [
-    { label: 'API-Equivalent Cost', value: fmtCost(t.totalCost), sub: costSub,
-      tip: 'What these tokens would cost at Anthropic API list prices (' + escapeHtml((DATA.filters && DATA.filters.pricingSource) || '') + '), including 1-hour cache writes and subagents. Subscription plans bill differently. Models without a known price are left out.' },
-    { label: 'Total Usage', value: fmt(t.totalTokens), sub: `${fmt(t.totalInputTokens)} input · ${fmt(t.totalCacheCreationTokens || 0)} cache writes · ${fmt(t.totalCacheReadTokens || 0)} cache reads · ${fmt(t.totalOutputTokens)} output`,
-      tip: 'All tokens across your conversations. Input = fresh context, cache writes = first-time caching, cache reads = reused from cache (10x cheaper), output = Claude\'s responses.' },
-    { label: 'Conversations', value: fmtFull(t.totalSessions), sub: `Each one used ~${fmt(t.avgTokensPerSession)} tokens on average`,
-      tip: 'Each time you start Claude Code and begin chatting, that counts as one conversation. A new conversation starts fresh with no prior context.' },
-    { label: 'Messages Sent', value: fmtFull(t.totalQueries), sub: `Each message used ~${fmt(avgTokensPerMsg)} tokens on average`,
-      tip: 'Every time you hit Enter and send something to Claude, that is one message. This includes follow-up tool calls Claude makes automatically behind the scenes.' },
-    { label: 'Cache Hit Rate', value: `${((t.cacheHitRate || 0) * 100).toFixed(0)}%`, sub: `${fmt(t.totalCacheReadTokens || 0)} tokens served from cache`,
-      tip: 'The percentage of input tokens that were served from cache instead of being processed fresh. Higher is better -- cached tokens are 10x to 40x cheaper and help you stay under rate limits.' },
+    { label: 'Tokens', value: fmt(t.totalTokens),
+      sub: [`${fmt(t.totalCacheReadTokens || 0)} cache reads`, `${fmt(t.totalCacheCreationTokens || 0)} cache writes`, `${fmt(t.totalInputTokens)} input, ${fmt(t.totalOutputTokens)} output`],
+      tip: 'All tokens in this range. Input is fresh context, cache writes save context for reuse, cache reads reuse it at a fraction of the price, output is what Claude writes.' },
+    { label: 'Conversations', value: fmtFull(t.totalSessions), sub: [`~${fmt(t.avgTokensPerSession)} tokens each`],
+      tip: 'Each Claude Code session counts as one conversation. Subagent runs are counted inside the conversation that started them.' },
+    { label: 'Messages', value: fmtFull(t.totalQueries), sub: [`~${fmt(avgTokensPerMsg)} tokens each`],
+      tip: 'Every response Claude produced, including automatic tool calls and subagent work.' },
+    { label: 'Cache hit rate', value: `${((t.cacheHitRate || 0) * 100).toFixed(0)}%`, sub: [`${fmtCost(t.totalSaved || 0)} saved by caching`],
+      tip: 'Share of input tokens served from cache instead of processed fresh. Cached tokens cost 10x to 40x less, depending on the model.' },
+    { label: 'API-equivalent cost', value: fmtCost(t.totalCost), total: true,
+      sub: [
+        days > 0 ? `~${fmtCost(t.totalCost / days)} per active day` : '',
+        t.totalSubagentCost > 0 ? `${fmtCost(t.totalSubagentCost)} from subagents` : '',
+        t.unpricedTokens > 0 ? `${fmt(t.unpricedTokens)} tokens unpriced` : '',
+      ].filter(Boolean),
+      tip: 'What these tokens would cost at Anthropic API list prices (' + escapeHtml((DATA.filters && DATA.filters.pricingSource) || '') + '), including 1-hour cache writes and subagents. Subscriptions bill differently. Models without a known price are left out.' },
   ];
 
-  document.getElementById('statsRow').innerHTML = cards.map((c, i) => `
-    <div class="stat-card animate delay-${Math.min(i + 1, 5)}">
-      <div class="stat-label has-tooltip">${c.label}<span class="help-icon">?</span><div class="tooltip">${c.tip}</div></div>
+  document.getElementById('statsRow').innerHTML = cards.map(c => `
+    <div class="stat-card${c.total ? ' total' : ''}">
+      <div class="stat-label has-tooltip" tabindex="0">${c.label}<span class="help-icon" aria-hidden="true">?</span><div class="tooltip" role="tooltip">${c.tip}</div></div>
       <div class="stat-value">${c.value}</div>
-      <div class="stat-sub">${c.sub}</div>
+      <div class="stat-sub">${c.sub.map(s => `<span>${s}</span>`).join('')}</div>
     </div>`).join('');
 }
 
@@ -1218,15 +949,12 @@ function renderInsights() {
   if (!insights.length) { section.style.display = 'none'; return; }
 
   section.style.display = 'block';
-  const icons = { warning: '!', info: 'i', neutral: '~' };
-  const emojis = { warning: '\u26A0\uFE0F', info: '\uD83D\uDCA1', neutral: '\uD83D\uDCC5' };
 
-  document.getElementById('insightsList').innerHTML = insights.map((ins, i) => {
+  document.getElementById('insightsList').innerHTML = insights.map(ins => {
     const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
     const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
-    return `<div class="insight-card ${ins.type} animate delay-${Math.min(i + 2, 5)}" onclick="this.classList.toggle('expanded')">
+    return `<div class="insight-card ${ins.type}" tabindex="0" role="button" onclick="this.classList.toggle('expanded')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
       <div class="insight-top">
-        <div class="insight-indicator">${emojis[ins.type] || ''}</div>
         <div class="insight-title">${escapeHtml(ins.title)}</div>
         <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
       </div>
@@ -1244,53 +972,53 @@ function renderDailyChart() {
   const ctx = canvas.getContext('2d');
   const data = DATA.dailyUsage;
   const isCost = dailyMetric === 'cost';
-  document.getElementById('dailyChartTitle').firstChild.textContent = isCost ? 'Cost per Day' : 'Tokens per Day';
+  document.getElementById('dailyChartTitle').textContent = isCost ? 'Cost per day' : 'Tokens per day';
   document.getElementById('dailyLegend').style.visibility = isCost ? 'hidden' : '';
 
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth - 48;
-  const h = 200;
+  const w = canvas.parentElement.clientWidth - 40;
+  const h = 260;
   canvas.width = w * dpr; canvas.height = h * dpr;
   canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
-  if (!data.length) return;
+  if (!data.length) {
+    ctx.font = `400 14px ${CHART_FONT}`; ctx.fillStyle = INK.ink3; ctx.textAlign = 'left';
+    ctx.fillText('No usage in this range. Pick a wider date range above.', 0, h / 2);
+    return;
+  }
 
   const valueOf = d => isCost ? d.cost : d.totalTokens;
   const maxTotal = Math.max(...data.map(valueOf)) || 1;
+  const startX = 60;
   const gap = data.length > 60 ? 1 : 3;
-  const barW = Math.max(1, Math.min(32, (w - 52) / data.length - gap));
+  const barW = Math.max(1, Math.min(32, (w - startX - 4) / data.length - gap));
   const chartH = h - 36;
-  const startX = 48;
 
-  // Grid
-  ctx.font = '500 10px Inter, system-ui';
-  ctx.fillStyle = '#94A3B8';
+  // Ledger rules
+  ctx.font = `500 11px ${CHART_FONT}`;
+  ctx.fillStyle = INK.ink3;
   ctx.textAlign = 'right';
   for (let i = 0; i <= 4; i++) {
     const val = (maxTotal / 4) * i;
-    const y = chartH - (chartH * i / 4) + 8;
-    ctx.fillText(isCost ? fmtCost(val) : fmt(val), startX - 10, y + 3);
-    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    const y = Math.round(chartH - (chartH * i / 4) + 8) + 0.5;
+    ctx.fillText(isCost ? fmtCost(val) : fmt(val), startX - 10, y + 4);
+    ctx.strokeStyle = i === 0 ? INK.ruleStrong : INK.rule; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
   }
 
-  // Gradients
-  const inGrad = ctx.createLinearGradient(0, chartH + 8, 0, 0);
-  inGrad.addColorStop(0, '#818CF8'); inGrad.addColorStop(1, '#6366F1');
-  const cacheWriteGrad = ctx.createLinearGradient(0, chartH + 8, 0, 0);
-  cacheWriteGrad.addColorStop(0, '#FB7185'); cacheWriteGrad.addColorStop(1, '#F43F5E');
-  const cacheReadGrad = ctx.createLinearGradient(0, chartH + 8, 0, 0);
-  cacheReadGrad.addColorStop(0, '#FBBF24'); cacheReadGrad.addColorStop(1, '#F59E0B');
-  const outGrad = ctx.createLinearGradient(0, chartH + 8, 0, 0);
-  outGrad.addColorStop(0, '#2DD4BF'); outGrad.addColorStop(1, '#14B8A6');
+  // Flat fills, one per token type (cost uses red ink)
+  const inGrad = isCost ? INK.red : INK.input;
+  const cacheWriteGrad = INK.write;
+  const cacheReadGrad = INK.read;
+  const outGrad = INK.output;
 
   const minH = 3; // minimum pixel height so small segments stay visible
 
   data.forEach((d, i) => {
     const x = startX + i * (barW + gap);
     const baseY = chartH + 8;
-    const r = Math.min(4, barW / 2);
+    const r = Math.min(2, barW / 2);
     let y = baseY;
 
     if (isCost) {
@@ -1339,13 +1067,17 @@ function renderDailyChart() {
   });
 
   // X labels
-  ctx.fillStyle = '#94A3B8'; ctx.textAlign = 'center';
-  ctx.font = '500 10px Inter, system-ui';
+  ctx.fillStyle = INK.ink3; ctx.textAlign = 'center';
+  ctx.font = `500 11px ${CHART_FONT}`;
   const step = Math.max(1, Math.floor(data.length / 7));
   data.forEach((d, i) => {
-    if (i % step === 0 || i === data.length - 1) {
+    const last = data.length - 1;
+    // Skip a regular label that would collide with the final date
+    if ((i % step === 0 && (i === last || last - i >= Math.ceil(step / 2))) || i === last) {
       const x = startX + i * (barW + gap) + barW / 2;
-      ctx.fillText(formatDate(d.date), x, chartH + 24);
+      const isLast = i === data.length - 1;
+      ctx.textAlign = isLast && data.length > 7 ? 'right' : 'center';
+      ctx.fillText(formatDate(d.date), isLast && data.length > 7 ? x + barW / 2 : x, chartH + 24);
     }
   });
 }
@@ -1365,64 +1097,43 @@ function roundedRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Model donut
+// By model: one ruled row per model, ordered by cost, with a share-of-cost bar
+function modelColor(m) {
+  if (m.includes('opus')) return INK.blue;
+  if (m.includes('sonnet')) return INK.green;
+  if (m.includes('haiku')) return INK.ochre;
+  if (m.includes('fable') || m.includes('mythos')) return INK.red;
+  return INK.ink3;
+}
 function renderModelChart() {
-  const canvas = document.getElementById('modelChart');
-  const ctx = canvas.getContext('2d');
-  const data = DATA.modelBreakdown;
+  document.getElementById('modelChart').style.display = 'none';
+  const legend = document.getElementById('modelLegend');
+  const data = DATA.modelBreakdown || [];
+  if (!data.length) { legend.innerHTML = '<div class="model-empty">No usage in this range.</div>'; return; }
 
-  const dpr = window.devicePixelRatio || 1;
-  const size = Math.min(180, canvas.parentElement.clientWidth - 48);
-  canvas.width = size * dpr; canvas.height = size * dpr;
-  canvas.style.width = size + 'px'; canvas.style.height = size + 'px';
-  ctx.scale(dpr, dpr);
-  document.getElementById('modelLegend').innerHTML = '';
-  if (!data.length) return;
-
-  const cx = size/2, cy = size/2, r = size/2 - 6, innerR = r * 0.6;
-  const total = data.reduce((s, d) => s + d.totalTokens, 0);
-
-  const modelColors = { opus: ['#6366F1','#818CF8'], sonnet: ['#10B981','#34D399'], haiku: ['#F97316','#FB923C'], fable: ['#EC4899','#F472B6'], mythos: ['#EC4899','#F472B6'] };
-  function getColors(m) {
-    for (const [k, c] of Object.entries(modelColors)) { if (m.includes(k)) return c; }
-    return ['#94A3B8','#CBD5E1'];
-  }
-
-  let angle = -Math.PI / 2;
-  const slices = [...data].sort((a, b) => b.totalTokens - a.totalTokens);
-
-  slices.forEach(d => {
-    const sa = (d.totalTokens / total) * Math.PI * 2;
-    const [c1, c2] = getColors(d.model);
-    const grad = ctx.createConicGradient(angle, cx, cy);
-    grad.addColorStop(0, c1); grad.addColorStop(1, c2);
-
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, angle, angle + sa);
-    ctx.arc(cx, cy, innerR, angle + sa, angle, true);
-    ctx.closePath();
-    ctx.fillStyle = c1;
-    ctx.fill();
-
-    // Gap between slices
-    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2; ctx.stroke();
-    angle += sa;
-  });
-
-  ctx.fillStyle = '#0F172A'; ctx.textAlign = 'center';
-  ctx.font = '800 17px Inter, system-ui';
-  ctx.fillText(fmt(total), cx, cy + 2);
-  ctx.font = '500 10px Inter, system-ui';
-  ctx.fillStyle = '#94A3B8';
-  ctx.fillText('total', cx, cy + 16);
-
-  document.getElementById('modelLegend').innerHTML = slices.map(d => {
-    const pct = ((d.totalTokens / total) * 100).toFixed(1);
-    return `<div class="legend-item">
-      <div class="legend-dot" style="background:${getColors(d.model)[0]}"></div>
-      <span><strong>${escapeHtml(modelShort(d.model))}</strong> &ndash; ${fmt(d.totalTokens)} (${pct}%) &middot; ${d.priced === false ? 'unpriced' : fmtCost(d.cost)}</span>
+  const totalCost = data.reduce((s, d) => s + d.cost, 0) || 1;
+  const totalTokens = data.reduce((s, d) => s + d.totalTokens, 0) || 1;
+  const rows = [...data].sort((a, b) => (b.cost - a.cost) || (b.totalTokens - a.totalTokens));
+  const VISIBLE = 5;
+  const hidden = rows.length - VISIBLE;
+  legend.classList.remove('show-all');
+  legend.innerHTML = rows.map((d, i) => {
+    const unpriced = d.priced === false;
+    const share = unpriced ? d.totalTokens / totalTokens : d.cost / totalCost;
+    const color = modelColor(d.model);
+    return `<div class="model-row${i >= VISIBLE ? ' model-more' : ''}">
+      <div class="model-row-top">
+        <span class="model-badge"><span class="model-dot" style="background:${color}"></span>${escapeHtml(modelShort(d.model))}</span>
+        <span class="model-row-cost${unpriced ? ' unpriced' : ''}">${unpriced ? 'unpriced' : fmtCost(d.cost)}</span>
+      </div>
+      <div class="model-row-bar"><span style="width:${Math.max(0.5, share * 100).toFixed(1)}%;background:${color}"></span></div>
+      <div class="model-row-sub">${fmt(d.totalTokens)} tokens, ${fmtFull(d.queryCount)} messages</div>
     </div>`;
-  }).join('');
+  }).join('') + (hidden > 0 ? `<button class="model-toggle" onclick="toggleModelRows(this, ${hidden})">Show ${hidden} more models</button>` : '');
+}
+function toggleModelRows(btn, hidden) {
+  const showAll = document.getElementById('modelLegend').classList.toggle('show-all');
+  btn.textContent = showAll ? 'Show fewer models' : `Show ${hidden} more models`;
 }
 
 // Project accordion
@@ -1518,32 +1229,32 @@ function renderProjectBreakdown() {
 function renderTopPrompts() {
   const prompts = DATA.topPrompts;
   if (!prompts.length) {
-    document.getElementById('topPromptsList').innerHTML = '<div style="padding:20px;color:var(--text-tertiary);font-size:13px">No prompts in this range.</div>';
+    document.getElementById('topPromptsList').innerHTML = '<div class="model-empty" style="padding:16px 18px">No prompts in this range. Pick a wider date range above.</div>';
     return;
   }
-  const maxTokens = prompts[0].totalTokens;
+  const maxTokens = Math.max(...prompts.map(p => p.totalTokens)) || 1;
 
   document.getElementById('topPromptsList').innerHTML = prompts.map((p, i) => {
-    const freshIn = p.inputTokens + (p.cacheCreationTokens || 0);
     const cached = p.cacheReadTokens || 0;
-    const total = freshIn + cached + p.outputTokens;
-    const freshPct = total > 0 ? (freshIn / total) * 100 : 0;
-    const cachePct = total > 0 ? (cached / total) * 100 : 0;
-    const outPct = total > 0 ? (p.outputTokens / total) * 100 : 0;
-    return `<div class="prompt-row" onclick="openDrilldown('${p.sessionId}', '${escapeHtml(p.account)}')">
+    const written = p.cacheCreationTokens || 0;
+    const total = p.inputTokens + written + cached + p.outputTokens;
+    const pct = n => total > 0 ? (n / total) * 100 : 0;
+    return `<div class="prompt-row" tabindex="0" onclick="openDrilldown('${p.sessionId}', '${escapeHtml(p.account)}')" onkeydown="if(event.key==='Enter')this.click()">
       <div class="prompt-rank">${i + 1}</div>
       <div>
         <div class="prompt-text">${escapeHtml(p.prompt)}</div>
-        <div class="prompt-meta">${formatDate(p.date)} &middot; ${escapeHtml(modelShort(p.model))} &middot; ${fmtCost(p.cost)}${multiAccount() ? `<span class="account-tag">${escapeHtml(p.account)}</span>` : ''}</div>
-        <div class="token-bar-wrap" style="width:${Math.max(10, (p.totalTokens / maxTokens) * 100)}%">
-          <div class="token-bar-in" style="width:${freshPct}%"></div>
-          <div class="token-bar-cache" style="width:${cachePct}%"></div>
-          <div class="token-bar-out" style="width:${outPct}%"></div>
+        <div class="prompt-meta"><span>${formatDate(p.date)}</span><span>${escapeHtml(modelShort(p.model))}</span>${multiAccount() ? `<span class="account-tag">${escapeHtml(p.account)}</span>` : ''}</div>
+        <div class="token-bar-wrap" style="width:${Math.max(10, (p.totalTokens / maxTokens) * 100)}%" title="Input, cache writes, cache reads, output">
+          <div class="token-bar-in" style="width:${pct(p.inputTokens)}%"></div>
+          <div class="token-bar-write" style="width:${pct(written)}%"></div>
+          <div class="token-bar-cache" style="width:${pct(cached)}%"></div>
+          <div class="token-bar-out" style="width:${pct(p.outputTokens)}%"></div>
         </div>
       </div>
       <div class="prompt-tokens">
-        <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--indigo)">${fmt(p.totalTokens)}</div>
-        <div class="sub">${fmt(p.inputTokens)} in / ${fmt(cached)} cached / ${fmt(p.outputTokens)} out</div>
+        <div class="cost">${fmtCost(p.cost)}</div>
+        <div class="value">${fmt(p.totalTokens)} tokens</div>
+        <div class="sub">${fmt(cached)} cached, ${fmt(p.outputTokens)} out</div>
       </div>
     </div>`;
   }).join('');
@@ -1669,14 +1380,14 @@ function renderTurnCostChart(grouped) {
   const chartH = h - padT - padB;
 
   // Grid lines
-  ctx.font = '500 10px Inter, system-ui';
-  ctx.fillStyle = '#94A3B8';
+  ctx.font = `500 11px ${CHART_FONT}`;
+  ctx.fillStyle = INK.ink3;
   ctx.textAlign = 'right';
   for (let i = 0; i <= 3; i++) {
     const val = (maxCost / 3) * i;
     const y = padT + chartH - (chartH * i / 3);
-    ctx.fillText('$' + val.toFixed(3), padL - 8, y + 3);
-    ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 1;
+    ctx.fillText(fmtCost(val), padL - 8, y + 3);
+    ctx.strokeStyle = i === 0 ? INK.ruleStrong : INK.rule; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
   }
 
@@ -1697,9 +1408,7 @@ function renderTurnCostChart(grouped) {
   }
 
   // Area gradient fill
-  const gradient = ctx.createLinearGradient(0, padT, 0, padT + chartH);
-  gradient.addColorStop(0, 'rgba(244,63,94,0.25)');
-  gradient.addColorStop(1, 'rgba(99,102,241,0.05)');
+  const gradient = 'rgba(178,58,46,0.08)';
 
   ctx.beginPath();
   costs.forEach((c, i) => {
@@ -1714,9 +1423,7 @@ function renderTurnCostChart(grouped) {
   ctx.fill();
 
   // Line
-  const lineGrad = ctx.createLinearGradient(padL, 0, padL + chartW, 0);
-  lineGrad.addColorStop(0, '#6366F1');
-  lineGrad.addColorStop(1, '#F43F5E');
+  const lineGrad = INK.red;
   ctx.beginPath();
   costs.forEach((c, i) => {
     const x = padL + i * stepX;
@@ -1724,7 +1431,7 @@ function renderTurnCostChart(grouped) {
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   });
   ctx.strokeStyle = lineGrad;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
   // Dots
@@ -1733,8 +1440,8 @@ function renderTurnCostChart(grouped) {
     const y = padT + chartH - (c / maxCost) * chartH;
     const t = costs.length > 1 ? i / (costs.length - 1) : 0;
     ctx.beginPath();
-    ctx.arc(x, y, 3, 0, Math.PI * 2);
-    ctx.fillStyle = t < 0.5 ? '#6366F1' : '#F43F5E';
+    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = INK.red;
     ctx.fill();
   });
 
@@ -1742,17 +1449,17 @@ function renderTurnCostChart(grouped) {
   if (inflectionIdx > 0) {
     const ix = padL + inflectionIdx * stepX;
     ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = '#F59E0B';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = INK.ink;
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(ix, padT);
     ctx.lineTo(ix, padT + chartH);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#F59E0B';
-    ctx.font = '600 10px Inter, system-ui';
+    ctx.fillStyle = INK.ink;
+    ctx.font = `600 11px ${CHART_FONT}`;
     // Position label: keep it inside chart bounds
-    const labelText = '$' + costs[inflectionIdx].toFixed(2) + ' \u2014 most expensive';
+    const labelText = '$' + costs[inflectionIdx].toFixed(2) + ', the most expensive turn';
     const labelWidth = ctx.measureText(labelText).width;
     if (ix + labelWidth / 2 > w - padR) {
       ctx.textAlign = 'right';
@@ -1764,8 +1471,8 @@ function renderTurnCostChart(grouped) {
   }
 
   // X labels
-  ctx.fillStyle = '#94A3B8';
-  ctx.font = '500 10px Inter, system-ui';
+  ctx.fillStyle = INK.ink3;
+  ctx.font = `500 11px ${CHART_FONT}`;
   ctx.textAlign = 'center';
   const labelStep = Math.max(1, Math.floor(grouped.length / 8));
   costs.forEach((_, i) => {
@@ -1802,29 +1509,29 @@ function renderDrilldownInsight(grouped, session) {
   if (hasSpike) {
     // Has an expensive spike - explain it and recommend /clear
     const spikeCost = maxTurnCost;
-    title = `\u26A0\uFE0F Turn ${topTurnIdx + 1} cost $${spikeCost.toFixed(2)} \u2014 ${median > 0 ? (spikeCost / median).toFixed(0) + 'x' : 'far'} more than a typical turn`;
-    body = `Median turn cost: $${median.toFixed(4)}. The spike at turn ${topTurnIdx + 1} happened because the context had grown large by that point. Running /clear before expensive turns resets the context and brings costs back down. Tip: if you notice Claude slowing down or you are switching to a different task, that is a good time to /clear.`;
-    bg = 'linear-gradient(135deg,rgba(245,158,11,0.08),rgba(244,63,94,0.06))';
-    border = 'rgba(245,158,11,0.15)';
-    color = '#D97706';
+    title = `Turn ${topTurnIdx + 1} cost ${fmtCost(spikeCost)}, ${median > 0 ? (spikeCost / median).toFixed(0) + 'x' : 'far'} more than a typical turn`;
+    body = `A typical turn cost ${fmtCost(median)}. The spike at turn ${topTurnIdx + 1} happened because the context had grown large by that point. Running /clear before expensive turns resets the context and brings costs back down. Tip: if you notice Claude slowing down or you are switching to a different task, that is a good time to /clear.`;
+    bg = '#FCF7F5';
+    border = INK.red;
+    color = INK.red;
   } else if (costs.length > 50) {
     // Long conversation, no big spike
     const lastQuarter = costs.slice(Math.floor(costs.length * 0.75));
     const lastQuarterAvg = lastQuarter.reduce((a, b) => a + b, 0) / lastQuarter.length;
-    title = `\u2139\uFE0F ${costs.length} turns is a long conversation`;
+    title = `${costs.length} turns is a long conversation`;
     body = `Caching kept costs steady (avg ~$${avgCost.toFixed(4)}/turn), but the context window still grew large. Late turns averaged ~$${lastQuarterAvg.toFixed(4)}. Consider splitting into smaller conversations for better focus and lower risk of hitting context limits.`;
-    bg = 'linear-gradient(135deg,rgba(99,102,241,0.06),rgba(99,102,241,0.02))';
-    border = 'rgba(99,102,241,0.12)';
-    color = '#6366F1';
+    bg = INK.sheet;
+    border = INK.blue;
+    color = INK.blue;
   } else if (costs.length >= 3) {
     // Normal/healthy
     const totalTokens = session.totalTokens;
     const cacheRate = session.queries ? Math.round(session.queries.reduce((s, q) => s + (q.cacheReadTokens || 0), 0) / Math.max(1, totalTokens) * 100) : 0;
-    title = `\u2705 This conversation was efficient`;
+    title = `This conversation was efficient`;
     body = `${costs.length} turns, avg ~$${avgCost.toFixed(4)}/turn, total ~$${totalCost.toFixed(2)} API-equivalent. ${cacheRate > 50 ? `Cache hit rate: ${cacheRate}% (good).` : cacheRate > 0 ? `Cache hit rate: ${cacheRate}%.` : ''} No issues detected.`;
-    bg = 'linear-gradient(135deg,rgba(16,185,129,0.06),rgba(16,185,129,0.02))';
-    border = 'rgba(16,185,129,0.12)';
-    color = '#059669';
+    bg = INK.sheet;
+    border = INK.green;
+    color = INK.green;
   } else {
     insightBox.style.display = 'none';
     return;
@@ -1833,7 +1540,7 @@ function renderDrilldownInsight(grouped, session) {
   insightTitle.textContent = title;
   insightBody.textContent = body;
   insightBox.style.background = bg;
-  insightBox.style.borderColor = border;
+  insightBox.style.borderLeft = `3px solid ${border}`;
   insightTitle.style.color = color;
   insightBox.style.display = 'block';
 }
@@ -1866,11 +1573,15 @@ async function openDrilldown(sessionId, account) {
 
   document.getElementById('drilldownTitle').textContent = session.firstPrompt.substring(0, 140);
   document.getElementById('drilldownMeta').textContent =
-    `${formatDate(session.date)} \u00B7 ${modelShort(session.model)} \u00B7 ${session.queryCount} messages \u00B7 ${fmt(session.totalTokens)} tokens \u00B7 ${fmtCost(session.cost)}` +
+    `${formatDate(session.date)}, ${modelShort(session.model)}, ${session.queryCount} messages, ${fmt(session.totalTokens)} tokens, ${fmtCost(session.cost)}` +
     (session.subagentCost > 0 ? ` (${fmtCost(session.subagentCost)} subagents)` : '') +
-    (multiAccount() ? ` \u00B7 ${session.account}` : '');
+    (multiAccount() ? `, ${session.account} account` : '');
 
   const grouped = groupSessionQueries(session.queries);
+
+  // Open first so the chart can measure the panel's real width
+  const panel = document.getElementById('drilldown');
+  panel.classList.add('open');
 
   // Reset chart canvas before rendering
   const turnCanvas = document.getElementById('turnCostChart');
@@ -1883,20 +1594,19 @@ async function openDrilldown(sessionId, account) {
   renderDrilldownInsight(grouped, session);
 
   document.getElementById('queryList').innerHTML = grouped.map((q, i) => {
-    const cont = q.continuations > 0 ? ` + ${q.continuations} tool uses` : '';
+    const cont = q.continuations > 0 ? `, ${q.continuations} tool calls` : '';
     const cached = q.cacheReadTokens || 0;
     return `<div class="query-item">
       <div class="query-num">${i + 1}</div>
       <div class="query-prompt">${escapeHtml(q.prompt.substring(0, 500))}</div>
       <div class="query-tokens-col">
-        <div class="total">${fmt(q.totalTokens)}</div>
-        <div class="detail">${fmt(q.inputTokens)} in / ${fmt(cached)} cached / ${fmt(q.outputTokens)} out${cont} &middot; ${fmtCost(q.cost)}</div>
+        <div class="total">${fmtCost(q.cost)}</div>
+        <div class="detail">${fmt(q.totalTokens)} tokens${cont}</div>
+        <div class="detail">${fmt(cached)} cached, ${fmt(q.outputTokens)} out</div>
       </div>
     </div>`;
   }).join('');
 
-  const panel = document.getElementById('drilldown');
-  panel.classList.add('open');
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -1957,13 +1667,13 @@ async function generateShareCard() {
 
   // Title
   ctx.fillStyle = '#F8FAFC';
-  ctx.font = '800 42px Inter, system-ui';
+  ctx.font = '800 42px "Schibsted Grotesk", system-ui';
   ctx.fillText('My Claude Code Stats', 60, 80);
 
   // Date range
   if (t.dateRange) {
     ctx.fillStyle = '#94A3B8';
-    ctx.font = '500 18px Inter, system-ui';
+    ctx.font = '500 18px "Schibsted Grotesk", system-ui';
     ctx.fillText(`${t.dateRange.from} to ${t.dateRange.to}`, 60, 116);
   }
 
@@ -1971,7 +1681,7 @@ async function generateShareCard() {
   const insights = DATA.insights || [];
   if (insights.length > 0) {
     ctx.fillStyle = '#F59E0B';
-    ctx.font = '600 20px Inter, system-ui';
+    ctx.font = '600 20px "Schibsted Grotesk", system-ui';
     wrapText(ctx, insights[0].title, 60, 160, W - 120, 28);
   }
 
@@ -2008,23 +1718,23 @@ async function generateShareCard() {
 
     // Label
     ctx.fillStyle = '#94A3B8';
-    ctx.font = '600 14px Inter, system-ui';
+    ctx.font = '600 14px "Schibsted Grotesk", system-ui';
     ctx.fillText(s.label.toUpperCase(), x + 24, y + 36);
 
     // Value
     ctx.fillStyle = '#F8FAFC';
-    ctx.font = '800 48px Inter, system-ui';
+    ctx.font = '800 48px "Schibsted Grotesk", system-ui';
     ctx.fillText(s.value, x + 24, y + 100);
   });
 
   // Branding footer
   const footerY = H - 50;
   ctx.fillStyle = '#64748B';
-  ctx.font = '500 16px Inter, system-ui';
+  ctx.font = '500 16px "Schibsted Grotesk", system-ui';
   ctx.fillText('claudespend.live', 60, footerY);
 
   ctx.fillStyle = '#475569';
-  ctx.font = '500 14px Inter, system-ui';
+  ctx.font = '500 14px "Schibsted Grotesk", system-ui';
   ctx.textAlign = 'right';
   ctx.fillText('npx claude-spend', W - 60, footerY);
   ctx.textAlign = 'left';

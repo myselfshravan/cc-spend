@@ -184,7 +184,8 @@ function userPromptText(entry) {
       ? content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
       : '';
   if (!text || NON_PROMPT_PREFIXES.some(p => text.startsWith(p))) return null;
-  return text;
+  // Pasted blocks arrive wrapped in <pasted_content id="..."> tags; keep only the text
+  return text.replace(/<\/?pasted_content[^>]*>/g, ' ').replace(/\s+/g, ' ').trim() || null;
 }
 
 // Claude Code writes one assistant response as several JSONL rows (one per content block)
@@ -407,8 +408,11 @@ function buildReport(usage, { from, to, account } = {}) {
 
     const primaryModel = Object.entries(modelCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'unknown';
     const date = queries[0].date;
-    const firstPrompt = source.historyPrompt
+    // history.jsonl shows pastes as "[Pasted text #1 +26 lines]"; prefer the real text then
+    const historyPrompt = source.historyPrompt && !/^\[Pasted text #\d+/.test(source.historyPrompt) ? source.historyPrompt : null;
+    const firstPrompt = historyPrompt
       || source.queries.find(q => q.userPrompt)?.userPrompt
+      || source.historyPrompt
       || '(no prompt)';
 
     // Group each turn (your prompt + every tool call and subagent run it caused)
@@ -521,8 +525,8 @@ function buildReport(usage, { from, to, account } = {}) {
     .map(d => ({ ...d, sessions: d.sessions.size }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Top 20 most expensive individual prompts
-  allPrompts.sort((a, b) => b.totalTokens - a.totalTokens);
+  // Top 20 most expensive individual prompts (by cost; tokens break ties and order unpriced turns)
+  allPrompts.sort((a, b) => (b.cost - a.cost) || (b.totalTokens - a.totalTokens));
   const topPrompts = allPrompts.slice(0, 20);
 
   const sum = key => sessions.reduce((s, x) => s + x[key], 0);
