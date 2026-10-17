@@ -561,6 +561,28 @@ function buildReport(usage, { from, to, account } = {}) {
     grandTotals.avgTokensPerSession = Math.round(grandTotals.totalTokens / grandTotals.totalSessions);
   }
 
+  // Same-length window just before the selected range, for "vs previous period"
+  if (from) {
+    const end = to || localDate(new Date());
+    const days = Math.round((Date.parse(end) - Date.parse(from)) / 86_400_000) + 1;
+    const shift = (date, n) => {
+      const d = new Date(date + 'T12:00:00');
+      d.setDate(d.getDate() + n);
+      return localDate(d);
+    };
+    const prev = { from: shift(from, -days), to: shift(from, -1), cost: 0, tokens: 0, queries: 0 };
+    for (const s of usage.sessions) {
+      if (account && account !== 'all' && s.account !== account) continue;
+      for (const q of s.queries) {
+        if (q.date < prev.from || q.date > prev.to) continue;
+        prev.cost += q.cost;
+        prev.tokens += q.totalTokens;
+        prev.queries += 1;
+      }
+    }
+    grandTotals.previous = prev;
+  }
+
   if (unpricedTokens > 0) {
     const list = Object.entries(unpricedMap).sort((a, b) => b[1] - a[1]).map(([m, t]) => `${m} (${fmt(t)})`).join(', ');
     warnings.push({

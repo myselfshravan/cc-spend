@@ -4,680 +4,608 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claude Spend</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap');
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* Ledger palette: ruled paper, blue-black ink, red ink for money */
+  /* Terminal-dark palette: one hue per token type, gold reserved for money */
   :root {
-    --paper: #EDF1EA;
-    --sheet: #FBFCF9;
-    --ink: #1C2733;
-    --ink-2: #4D5A57;
-    --ink-3: #75817D;
-    --rule: #D3DCCF;
-    --rule-strong: #B9C6B4;
-    --red: #B23A2E;
-    --blue: #2B5797;
-    --ochre: #B88A1B;
-    --green: #3D7A6E;
-    --hover: #F2F5EF;
+    --bg: #12151D;
+    --surface: #181C26;
+    --raised: #20252F;
+    --line: #2A3040;
+    --line-soft: #222836;
+    --text: #E3E7F0;
+    --muted: #9AA3B5;
+    --dim: #6B7489;
 
-    /* Token types, shared by charts, bars and legends */
-    --t-input: var(--blue);
-    --t-write: #C0675C;
-    --t-read: #D4AE4A;
-    --t-output: var(--green);
+    --gold: #E9B44C;
+    --gold-soft: rgba(233, 180, 76, 0.08);
+    --up: #F7768E;
+    --down: #9ECE6A;
 
-    --radius: 6px;
-    --font: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    --c-input: #7AA2F7;
+    --c-write: #BB9AF7;
+    --c-read: #73DACA;
+    --c-output: #9ECE6A;
+
+    --radius: 12px;
+    --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    color-scheme: dark;
   }
 
+  html { background: var(--bg); }
   body {
-    font-family: var(--font);
-    background: var(--paper);
-    color: var(--ink);
-    line-height: 1.5;
-    min-height: 100vh;
-    font-size: 15px;
+    font-family: var(--font); font-size: 14px; line-height: 1.5;
+    color: var(--text); background: var(--bg);
     -webkit-font-smoothing: antialiased;
   }
-  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-  canvas { display: block; }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--c-input); outline-offset: 2px; border-radius: 6px; }
+  [hidden] { display: none !important; }
 
-  /* Loading */
-  .loading {
-    display: flex; align-items: center; justify-content: center;
-    min-height: 100vh; flex-direction: column; gap: 16px;
-  }
-  .spinner {
-    width: 28px; height: 28px;
-    border: 2px solid var(--rule); border-top-color: var(--ink);
-    border-radius: 50%; animation: spin 0.8s linear infinite;
-  }
+  /* ---- Loading ---- */
+  .loading { min-height: 100vh; display: grid; place-items: center; align-content: center; gap: 14px; color: var(--muted); padding: 24px; }
+  .spinner { width: 26px; height: 26px; border: 2px solid var(--line); border-top-color: var(--gold); border-radius: 50%; animation: spin .8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loading-text { color: var(--ink-2); font-size: 14px; }
 
-  .container { max-width: 1180px; margin: 0 auto; padding: 28px 28px 48px; }
-  @media (max-width: 640px) { .container { padding: 20px 16px 40px; } }
+  /* ---- Top bar ---- */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(18, 21, 29, 0.88); backdrop-filter: saturate(140%) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner {
+    max-width: 1240px; margin: 0 auto; padding: 12px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; margin-right: 8px; white-space: nowrap; }
+  .brand-mark {
+    width: 22px; height: 22px; border-radius: 6px; position: relative;
+    background: conic-gradient(from 200deg, var(--c-input), var(--c-write), var(--c-read), var(--c-output), var(--c-input));
+  }
+  .brand-mark::after { content: ''; position: absolute; inset: 6px; border-radius: 3px; background: var(--bg); }
+  .filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; }
+  .actions { display: flex; gap: 8px; }
 
-  /* Kept as a hook for the one reveal: the ledger line on first load */
-  .animate { }
-  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  .seg { display: inline-flex; padding: 2px; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    padding: 4px 10px; border-radius: 7px; font-size: 13px; font-weight: 500; white-space: nowrap;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.active { background: var(--raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
 
-  /* ---- HEADER ---- */
-  .header {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
+  .daterange { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); }
+  .field {
+    height: 32px; padding: 0 10px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; font-size: 13px; color: var(--text);
   }
-  .header-left { display: flex; align-items: center; gap: 12px; }
-  .logo-mark {
-    width: 32px; height: 32px; border-radius: var(--radius);
-    background: var(--ink);
-    display: flex; align-items: center; justify-content: center;
-  }
-  .logo-mark svg { width: 18px; height: 18px; }
-  .header h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.4px; }
-  .header-right { display: flex; align-items: center; gap: 8px; }
-  .date-range { display: none; }
-  .refresh-btn {
-    background: transparent; border: 1px solid var(--rule-strong);
-    color: var(--ink-2); padding: 6px 12px; border-radius: var(--radius);
-    cursor: pointer; font: 500 13px var(--font);
-    display: flex; align-items: center; gap: 6px;
-  }
-  .refresh-btn:hover { background: var(--sheet); color: var(--ink); border-color: var(--ink-3); }
-  .refresh-btn svg { width: 14px; height: 14px; }
+  .field:hover { border-color: #3A4256; }
+  select.field { padding-right: 6px; }
 
-  /* ---- FILTER BAR ---- */
-  .filter-bar {
-    position: sticky; top: 0; z-index: 50;
-    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    padding: 10px 0; margin-bottom: 20px;
-    background: var(--paper);
-    border-bottom: 1px solid var(--rule);
+  .btn {
+    height: 32px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
   }
-  .filter-group {
-    display: inline-flex; border: 1px solid var(--rule-strong);
-    border-radius: var(--radius); overflow: hidden; background: var(--sheet);
-  }
-  .filter-group button {
-    border: 0; border-right: 1px solid var(--rule); background: transparent;
-    color: var(--ink-2); font: 500 13px var(--font);
-    padding: 5px 12px; cursor: pointer;
-  }
-  .filter-group button:last-child { border-right: 0; }
-  .filter-group button:hover { color: var(--ink); background: var(--hover); }
-  .filter-group button.active { background: var(--ink); color: var(--sheet); }
-  .filter-bar input[type="date"], .filter-bar select {
-    border: 1px solid var(--rule-strong); background: var(--sheet); color: var(--ink);
-    font: 500 13px var(--font); padding: 4px 8px; border-radius: var(--radius); height: 30px;
-  }
-  .filter-bar select { padding-right: 24px; }
-  .filter-bar .filter-sep { color: var(--ink-3); font-size: 13px; }
-  .account-tag {
-    display: inline-block; font-size: 11px; font-weight: 600; color: var(--blue);
-    border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; margin-left: 6px;
-    line-height: 1.4; vertical-align: 1px;
-  }
+  .btn:hover { color: var(--text); border-color: #3A4256; }
+  .btn svg { width: 14px; height: 14px; }
+  .linkbtn { background: none; border: 0; color: var(--c-input); cursor: pointer; font-size: 13px; font-weight: 500; padding: 0; }
+  .linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
 
-  /* ---- WARNINGS ---- */
-  .warnings-banner {
-    display: none; position: relative;
-    border-left: 3px solid var(--ochre); background: #F7F1DE;
-    padding: 10px 40px 10px 14px; margin-bottom: 20px;
-    font-size: 13px; color: #5C4A12; line-height: 1.55; border-radius: 0 var(--radius) var(--radius) 0;
-  }
-  .warnings-banner.visible { display: block; }
-  .warnings-banner strong { font-weight: 600; }
-  .warnings-banner ul { list-style: none; display: inline; }
-  .warnings-banner li { display: inline; }
-  .warnings-banner li + li::before { content: ' '; }
-  .warnings-banner .warn-close {
-    position: absolute; top: 6px; right: 8px;
-    background: none; border: none; cursor: pointer;
-    font-size: 18px; line-height: 1; color: #5C4A12; padding: 4px 6px; opacity: 0.6;
-  }
-  .warnings-banner .warn-close:hover { opacity: 1; }
+  /* ---- Layout ---- */
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 24px 56px; display: grid; gap: 20px; transition: opacity .15s; }
+  .wrap.busy { opacity: .55; pointer-events: none; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
 
-  /* ---- LEDGER LINE (stats) ---- */
-  .stats-row {
-    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.35fr);
-    background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--radius);
-    margin-bottom: 28px; animation: rise 0.45s ease-out both;
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; min-width: 0; }
+  .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+  .panel-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .panel-head .sub { font-size: 13px; color: var(--dim); margin-top: 2px; }
+
+  /* ---- Notice ---- */
+  .notice {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 14px; border-radius: 10px; font-size: 13px; color: var(--muted);
+    background: rgba(233, 180, 76, 0.06); border: 1px solid rgba(233, 180, 76, 0.22);
   }
-  .stat-card { padding: 18px 20px 20px; border-right: 1px solid var(--rule); min-width: 0; }
-  .stat-card:last-child { border-right: 0; }
-  .stat-label {
-    display: flex; align-items: center; gap: 6px; white-space: nowrap;
-    font-size: 13px; font-weight: 500; color: var(--ink-2); margin-bottom: 8px;
+  .notice strong { color: var(--gold); font-weight: 600; }
+  .notice .close { margin-left: auto; background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; }
+  .notice .close:hover { color: var(--text); }
+
+  /* ---- KPI strip ---- */
+  .kpis {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.3fr);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
   }
-  .stat-value {
-    font-size: 30px; font-weight: 700; letter-spacing: -0.8px; line-height: 1.1;
-    margin-bottom: 8px; white-space: nowrap;
-  }
-  .stat-sub { font-size: 12.5px; color: var(--ink-3); line-height: 1.5; }
-  .stat-sub span { display: block; }
-  /* The total: red ink, accountant's double rule */
-  .stat-card.total { background: #FCF7F5; border-radius: 0 var(--radius) var(--radius) 0; }
-  .stat-card.total .stat-value {
-    color: var(--red); font-size: 38px; letter-spacing: -1.2px;
-    display: inline-block; padding-bottom: 3px;
-    border-bottom: 4px double var(--red);
-  }
-  @media (max-width: 960px) {
-    .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .stat-card { border-bottom: 1px solid var(--rule); }
-    .stat-card:nth-child(2n) { border-right: 0; }
-    .stat-card.total { grid-column: 1 / -1; border-bottom: 0; border-radius: 0 0 var(--radius) var(--radius); }
+  .kpi { padding: 16px 20px 18px; border-left: 1px solid var(--line); min-width: 0; }
+  .kpi:first-child { border-left: 0; }
+  .kpi-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .kpi-value { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.15; margin-top: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .kpi-sub { font-size: 12.5px; color: var(--dim); margin-top: 6px; line-height: 1.55; }
+  .kpi-sub span { display: block; }
+  .kpi.cost { box-shadow: inset 0 2px 0 var(--gold); }
+  .kpi.cost .kpi-value { color: var(--gold); font-size: 32px; }
+  .delta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; font-size: 12.5px; font-weight: 500; margin-top: 6px; }
+  .delta.up { color: var(--up); }
+  .delta.down { color: var(--down); }
+  .delta .vs { color: var(--dim); font-weight: 400; }
+  @media (max-width: 1000px) {
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kpi { border-left: 0; border-top: 1px solid var(--line); }
+    .kpi:nth-child(-n+2) { border-top: 0; }
+    .kpi:nth-child(2n) { border-left: 1px solid var(--line); }
+    .kpi.cost { grid-column: 1 / -1; border-left: 0; }
   }
 
-  /* Tooltips */
-  .has-tooltip { position: relative; cursor: help; }
-  .has-tooltip .tooltip {
-    position: absolute; bottom: calc(100% + 8px); left: 0;
-    background: var(--ink); color: var(--sheet);
-    font-size: 12.5px; font-weight: 400; line-height: 1.5;
-    padding: 9px 12px; border-radius: var(--radius);
-    white-space: normal; width: max-content; max-width: 280px;
-    pointer-events: none; opacity: 0; transition: opacity 0.12s;
-    z-index: 100; text-transform: none; letter-spacing: 0; text-align: left;
+  .help {
+    width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0; cursor: help;
+    display: inline-grid; place-items: center; font-size: 10px; font-weight: 600;
+    color: var(--dim); border: 1px solid var(--line);
   }
-  .has-tooltip:hover .tooltip, .has-tooltip:focus-within .tooltip { opacity: 1; }
-  .has-tooltip-below .tooltip { bottom: auto; top: calc(100% + 8px); }
-  .sessions-table th:last-child .tooltip, .sessions-table th.token-num .tooltip,
-  .sessions-table th[style*="right"] .tooltip { left: auto; right: 0; }
-  .help-icon {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0;
-    border: 1px solid var(--rule-strong); color: var(--ink-3);
-    font-size: 10px; font-weight: 700; line-height: 1;
-  }
+  .help:hover, .help:focus-visible { color: var(--text); border-color: var(--dim); }
 
-  /* ---- SECTIONS ---- */
-  .section-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
-  .section-icon { display: none; }
-  .section-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  /* Floating tooltip shared by help icons and charts */
+  .tip {
+    position: fixed; z-index: 100; pointer-events: none; max-width: 300px;
+    background: #0D1017; border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; font-size: 12.5px; line-height: 1.5; color: var(--text);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  }
+  .tip .t-title { font-weight: 600; margin-bottom: 4px; }
+  .tip .t-row { display: flex; align-items: center; gap: 16px; justify-content: space-between; }
+  .tip .t-row span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  .tip .t-row b { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .tip .t-gold { color: var(--gold); }
+  .tip .t-note { color: var(--dim); margin-top: 4px; }
+  .sw { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
 
-  /* ---- CHARTS ---- */
-  .charts-grid {
-    display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 2fr);
-    gap: 16px; margin-bottom: 28px; align-items: start;
-  }
-  @media (max-width: 860px) { .charts-grid { grid-template-columns: 1fr; } }
-  .chart-card {
-    background: var(--sheet); border: 1px solid var(--rule-strong);
-    border-radius: var(--radius); padding: 18px 20px 20px; min-width: 0;
-  }
-  .chart-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
-  .chart-toggle { float: right; }
-  .chart-toggle button { font-size: 12px; padding: 3px 10px; }
-  .legend {
-    display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px;
-    font-size: 12.5px; color: var(--ink-2);
-  }
-  .legend-item { display: flex; align-items: center; gap: 7px; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-  #modelLegend { margin-top: 0 !important; gap: 0 !important; }
-  .model-row { padding: 10px 0; border-bottom: 1px solid var(--rule); }
-  .model-row:first-child { padding-top: 0; }
-  .model-row:last-child { border-bottom: 0; padding-bottom: 0; }
-  .model-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-  .model-row-top .model-badge { font-weight: 600; color: var(--ink); }
-  .model-row-cost { font-weight: 700; color: var(--red); white-space: nowrap; }
-  .model-row-bar { height: 4px; background: var(--hover); margin: 6px 0 4px; border-radius: 2px; overflow: hidden; }
-  .model-row-bar span { display: block; height: 100%; }
-  .model-row-sub { font-size: 12.5px; color: var(--ink-3); }
-  .model-row-cost.unpriced { color: var(--ink-3); font-weight: 500; }
-  .model-more { display: none; }
-  #modelLegend.show-all .model-more { display: block; }
-  .model-toggle {
-    margin-top: 12px; align-self: flex-start; background: none; border: 0; padding: 0; cursor: pointer;
-    font: 500 13px var(--font); color: var(--blue); text-decoration: underline; text-underline-offset: 3px;
-  }
-  .model-empty { font-size: 14px; color: var(--ink-3); }
+  /* ---- Daily chart ---- */
+  .chart-wrap { position: relative; }
+  .chart-wrap canvas { display: block; width: 100%; cursor: pointer; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
 
-  /* ---- INSIGHTS ---- */
-  .insights-section { margin-bottom: 28px; }
-  #insightsList {
-    background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--radius);
-  }
-  .insight-card {
-    border-bottom: 1px solid var(--rule); border-left: 3px solid var(--ink-3);
-    padding: 12px 18px; cursor: pointer;
-  }
-  .insight-card:first-child { border-top-left-radius: var(--radius); }
-  .insight-card:last-child { border-bottom: 0; border-bottom-left-radius: var(--radius); }
-  .insight-card:hover { background: var(--hover); }
-  .insight-card.warning { border-left-color: var(--red); }
-  .insight-card.info { border-left-color: var(--blue); }
-  .insight-top { display: flex; align-items: center; gap: 12px; }
-  .insight-indicator { display: none; }
-  .insight-title { font-size: 14.5px; font-weight: 600; line-height: 1.4; }
-  .insight-arrow {
-    margin-left: auto; flex-shrink: 0; color: var(--ink-3);
-    display: flex; transition: transform 0.2s ease;
-  }
-  .insight-card.expanded .insight-arrow { transform: rotate(180deg); }
-  .insight-expand { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
-  .insight-card.expanded .insight-expand { max-height: 400px; }
-  .insight-detail {
-    font-size: 14px; color: var(--ink-2); line-height: 1.65; max-width: 76ch;
-    padding-top: 8px;
-  }
-  .insight-action-tip {
-    font-size: 14px; line-height: 1.6; max-width: 76ch;
-    padding-top: 6px; color: var(--ink); font-weight: 500;
-  }
+  /* ---- Bar lists (models, projects) ---- */
+  .bars { display: grid; gap: 12px; }
+  .bar-row { display: grid; gap: 5px; }
+  .bar-top { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; }
+  .bar-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; min-width: 0; }
+  .bar-name .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-cost { font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .bar-cost.unpriced { color: var(--dim); font-weight: 500; }
+  .bar-cost .pct { color: var(--dim); font-weight: 400; margin-left: 6px; }
+  .bar-track { height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-meta { font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .empty { color: var(--dim); font-size: 13px; padding: 6px 0; list-style: none; }
 
-  /* ---- TOP PROMPTS ---- */
-  .top-prompts { margin-bottom: 28px; }
-  .prompts-card, .sessions-card {
-    background: var(--sheet); border: 1px solid var(--rule-strong); border-radius: var(--radius);
+  /* ---- Insights ---- */
+  .insight { border-top: 1px solid var(--line-soft); }
+  .insight:first-child { border-top: 0; }
+  .insight summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; font-weight: 500;
   }
-  .prompt-row {
-    display: grid; grid-template-columns: 28px minmax(0, 1fr) auto;
-    gap: 14px; padding: 12px 18px; align-items: start;
-    border-bottom: 1px solid var(--rule); cursor: pointer;
+  .insight summary::-webkit-details-marker { display: none; }
+  .insight summary::after {
+    content: ''; margin-left: auto; width: 7px; height: 7px; flex-shrink: 0;
+    border-right: 1.5px solid var(--dim); border-bottom: 1.5px solid var(--dim);
+    transform: rotate(45deg) translateY(-2px); transition: transform .15s;
   }
-  .prompt-row:last-child { border-bottom: none; }
-  .prompt-row:hover { background: var(--hover); }
-  .prompt-rank { font-size: 13px; font-weight: 600; color: var(--ink-3); text-align: right; padding-top: 1px; }
-  .prompt-text {
-    font-size: 14px; line-height: 1.5;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-    word-break: break-word;
-  }
-  .prompt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12.5px; color: var(--ink-3); margin-top: 3px; }
-  .prompt-meta .account-tag { margin-left: 0; }
-  .token-bar-wrap { display: flex; gap: 1px; height: 3px; margin-top: 8px; }
-  .token-bar-in { background: var(--t-input); height: 100%; }
-  .token-bar-write { background: var(--t-write); height: 100%; }
-  .token-bar-cache { background: var(--t-read); height: 100%; }
-  .token-bar-out { background: var(--t-output); height: 100%; }
-  .prompt-tokens { text-align: right; white-space: nowrap; }
-  .prompt-tokens .cost { font-size: 16px; font-weight: 700; color: var(--red); }
-  .prompt-tokens .value { font-size: 13px; font-weight: 600; color: var(--ink-2); }
-  .prompt-tokens .sub { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
+  .insight[open] summary::after { transform: rotate(225deg) translateY(-2px); }
+  .insight .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--dim); }
+  .insight.warning .dot { background: var(--up); }
+  .insight.info .dot { background: var(--c-input); }
+  .insight-body { padding: 0 0 12px 17px; color: var(--muted); max-width: 80ch; display: grid; gap: 6px; }
+  .insight-body .action { color: var(--text); }
 
-  /* ---- SESSIONS ---- */
-  .sessions-section { margin-bottom: 36px; }
-  .sessions-toolbar {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 10px; gap: 12px; flex-wrap: wrap;
+  /* ---- Prompts ---- */
+  .prompts { list-style: none; display: grid; }
+  .prompt {
+    display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 12px; align-items: start;
+    padding: 11px 8px; margin: 0 -8px; border-radius: 8px; cursor: pointer;
   }
-  .session-search {
-    background: var(--sheet); border: 1px solid var(--rule-strong);
-    color: var(--ink); padding: 7px 12px; border-radius: var(--radius);
-    font: 400 14px var(--font); width: 320px; max-width: 100%;
-  }
-  .session-search::placeholder { color: var(--ink-3); }
-  .session-search:focus { outline: 2px solid var(--blue); outline-offset: 0; border-color: transparent; }
-  .session-count { color: var(--ink-3); font-size: 13px; }
-  .sessions-card { overflow-x: auto; }
-  .sessions-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  .sessions-table th {
-    text-align: left; padding: 10px 14px;
-    font-size: 12.5px; font-weight: 600; color: var(--ink-2);
-    border-bottom: 1px solid var(--rule-strong);
-    cursor: pointer; user-select: none; white-space: nowrap;
-  }
-  .sessions-table th:hover { color: var(--ink); }
-  .sessions-table th.sorted { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
-  .sessions-table td { padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
-  .sessions-table tbody tr { cursor: pointer; }
-  .sessions-table tbody tr:hover td { background: var(--hover); }
-  .sessions-table tbody tr:last-child td { border-bottom: none; }
-  .sessions-table td:last-child { color: var(--red); font-weight: 700; }
-  .prompt-preview { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .token-num { font-size: 13.5px; font-weight: 500; text-align: right; white-space: nowrap; }
-  .date-cell { white-space: nowrap; color: var(--ink-2); }
-  .project-tag {
-    font-size: 12px; color: var(--ink-3); display: block;
-    max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  }
+  .prompt + .prompt { border-top: 1px solid var(--line-soft); }
+  .prompt:hover { background: var(--raised); }
+  .prompt-rank { color: var(--dim); font-variant-numeric: tabular-nums; text-align: right; }
+  .prompt-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+  .prompt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12.5px; color: var(--dim); margin-top: 3px; }
+  .prompt-right { text-align: right; white-space: nowrap; }
+  .prompt-cost { font-weight: 600; color: var(--gold); font-variant-numeric: tabular-nums; font-size: 15px; }
+  .prompt-tokens { font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
 
-  /* Model badges: a colored rule, not a pill */
-  .model-badge {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 13px; font-weight: 500; white-space: nowrap;
+  .chip {
+    display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 5px;
+    font-size: 11.5px; font-weight: 500; color: var(--muted); background: var(--raised); border: 1px solid var(--line);
   }
-  .model-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; background: var(--ink-3); }
-  .model-opus .model-dot { background: var(--blue); }
-  .model-sonnet .model-dot { background: var(--green); }
-  .model-haiku .model-dot { background: var(--ochre); }
-  .model-fable .model-dot { background: var(--red); }
-  .sr-only {
-    position: absolute; width: 1px; height: 1px; padding: 0;
-    margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0;
-  }
+  .model { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 
-  /* ---- DRILLDOWN ---- */
-  .drilldown {
-    background: var(--sheet); border: 1px solid var(--ink-3); border-radius: var(--radius);
-    padding: 20px 22px; margin-bottom: 28px; display: none;
+  /* ---- Sessions ---- */
+  .search {
+    height: 32px; width: 280px; max-width: 100%; padding: 0 10px 0 32px;
+    background: var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%236B7489' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='6' cy='6' r='4.5'/%3E%3Cpath d='M9.5 9.5 13 13'/%3E%3C/svg%3E") no-repeat 11px 50%;
+    border: 1px solid var(--line); border-radius: 8px; font-size: 13px;
   }
-  .drilldown.open { display: block; }
-  .drilldown-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-  .drilldown-title { font-size: 17px; font-weight: 700; line-height: 1.4; max-width: 80ch; }
-  .drilldown-meta { font-size: 13px; color: var(--ink-2); margin-top: 4px; }
-  .drilldown-close {
-    background: transparent; border: 1px solid var(--rule-strong); color: var(--ink-2);
-    width: 30px; height: 30px; border-radius: var(--radius); cursor: pointer;
-    font-size: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  .search::placeholder { color: var(--dim); }
+  .table-scroll { overflow-x: auto; margin: 0 -20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th {
+    text-align: left; font-weight: 500; font-size: 12.5px; color: var(--muted); white-space: nowrap;
+    padding: 8px 12px; border-bottom: 1px solid var(--line);
   }
-  .drilldown-close:hover { color: var(--ink); border-color: var(--ink-3); }
-  .drilldown h3 { font-size: 14px !important; font-weight: 600 !important; color: var(--ink) !important; text-transform: none !important; letter-spacing: 0 !important; }
-  #turnChartInsight { border-radius: var(--radius) !important; }
-  .query-list { border-top: 1px solid var(--rule); }
-  .query-item {
-    display: grid; grid-template-columns: 28px minmax(0, 1fr) auto;
-    gap: 14px; padding: 10px 4px; align-items: start; border-bottom: 1px solid var(--rule);
-  }
-  .query-item:hover { background: var(--hover); }
-  .query-num { font-size: 13px; font-weight: 600; color: var(--ink-3); text-align: right; }
-  .query-prompt { font-size: 14px; line-height: 1.5; word-break: break-word; max-width: 80ch; }
-  .query-tokens-col { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; white-space: nowrap; }
-  .query-tokens-col .total { font-size: 15px; font-weight: 700; color: var(--red); }
-  .query-tokens-col .detail { font-size: 12px; color: var(--ink-3); }
+  th button { background: none; border: 0; color: inherit; cursor: pointer; font-weight: inherit; display: inline-flex; align-items: center; gap: 4px; }
+  th button:hover { color: var(--text); }
+  th[aria-sort] button { color: var(--text); }
+  th[aria-sort="descending"] button::after { content: '↓'; color: var(--gold); }
+  th[aria-sort="ascending"] button::after { content: '↑'; color: var(--gold); }
+  th:first-child, td:first-child { padding-left: 20px; }
+  th:last-child, td:last-child { padding-right: 20px; }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover td { background: var(--raised); }
+  .r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.cost { color: var(--gold); font-weight: 600; }
+  .s-date { white-space: nowrap; color: var(--muted); }
+  .s-prompt { max-width: 460px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s-project { font-size: 12px; color: var(--dim); margin-top: 1px; display: flex; gap: 6px; align-items: center; }
+  .table-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 12px; font-size: 13px; color: var(--dim); }
 
-  /* ---- HOW TOKENS WORK (reference, at the end) ---- */
-  .how-tokens {
-    background: var(--sheet); border: 1px solid var(--rule-strong);
-    border-radius: var(--radius); margin-bottom: 28px; overflow: hidden;
+  /* ---- Explainer ---- */
+  .explainer summary { cursor: pointer; font-weight: 600; font-size: 15px; list-style: none; display: flex; align-items: center; gap: 10px; }
+  .explainer summary::-webkit-details-marker { display: none; }
+  .explainer summary::after {
+    content: ''; margin-left: auto; width: 7px; height: 7px;
+    border-right: 1.5px solid var(--dim); border-bottom: 1.5px solid var(--dim); transform: rotate(45deg);
   }
-  .how-tokens-toggle {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 18px; cursor: pointer; user-select: none;
-  }
-  .how-tokens-toggle:hover { background: var(--hover); }
-  .how-tokens-toggle h3 { font-size: 15px; font-weight: 600; }
-  .how-tokens-arrow { color: var(--ink-3); transition: transform 0.2s; display: flex; }
-  .how-tokens.expanded .how-tokens-arrow { transform: rotate(180deg); }
-  .how-tokens-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; padding: 0 18px; }
-  .how-tokens.expanded .how-tokens-body { max-height: 900px; padding: 0 18px 20px; }
-  .how-tokens-body p { font-size: 14px; line-height: 1.65; color: var(--ink-2); margin: 0 0 16px; max-width: 76ch; }
-  .how-tokens-example { border: 1px solid var(--rule); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px; }
-  .how-tokens-example-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
-  .how-tokens-step { display: flex; align-items: baseline; gap: 12px; padding: 6px 0; font-size: 14px; color: var(--ink-2); border-bottom: 1px solid var(--rule); }
-  .step-label { font-weight: 600; color: var(--ink); min-width: 84px; flex-shrink: 0; }
-  .step-desc { flex: 1; }
-  .step-tokens { font-weight: 600; white-space: nowrap; color: var(--ink); }
-  .how-tokens-total { margin-top: 10px; font-size: 14px; color: var(--ink); }
-  .how-tokens-types { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-  .how-tokens-type { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.55; color: var(--ink-2); }
-  .how-tokens-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; margin-top: 6px; }
-  .how-tokens-tip { border-left: 3px solid var(--blue); padding: 4px 0 4px 12px; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
-  .how-tokens-tip code { font-size: 13px; font-weight: 600; color: var(--ink); background: var(--hover); padding: 1px 5px; border-radius: 3px; }
+  .explainer[open] summary::after { transform: rotate(225deg); }
+  .explainer-body { margin-top: 14px; display: grid; gap: 12px; color: var(--muted); max-width: 80ch; }
+  .explainer-body dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; }
+  .explainer-body dt { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font-weight: 500; }
+  code { background: var(--raised); padding: 1px 6px; border-radius: 4px; color: var(--text); font-size: 12.5px; }
 
-  /* ---- FOOTER ---- */
-  .footer {
-    border-top: 1px solid var(--rule); padding-top: 16px;
-    color: var(--ink-3); font-size: 13px; line-height: 1.7;
-  }
-  .footer a { color: var(--ink-2); }
-  .privacy-notice, .hero-section { display: none; }
+  footer { color: var(--dim); font-size: 12.5px; line-height: 1.7; padding: 4px 2px 0; }
+  footer a { color: var(--muted); }
 
-  /* Share card overlay */
-  .share-overlay {
-    position: fixed; inset: 0; background: rgba(28,39,51,0.55);
-    display: none; align-items: center; justify-content: center; z-index: 1000;
+  /* ---- Session drawer ---- */
+  .scrim { position: fixed; inset: 0; z-index: 60; background: rgba(5, 7, 12, 0.6); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 61; width: min(760px, 100vw);
+    background: var(--surface); border-left: 1px solid var(--line);
+    transform: translateX(100%); transition: transform .22s ease; overflow-y: auto;
+    visibility: hidden;
   }
-  .share-overlay.open { display: flex; }
-  .share-modal {
-    background: var(--sheet); border-radius: var(--radius); padding: 20px;
-    max-width: 680px; width: 92%;
+  body.drawer-open { overflow: hidden; }
+  body.drawer-open .scrim { opacity: 1; pointer-events: auto; }
+  body.drawer-open .drawer { transform: none; visibility: visible; }
+  .drawer-head {
+    position: sticky; top: 0; z-index: 2; background: var(--surface);
+    padding: 18px 22px 14px; border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 1fr auto; gap: 12px;
   }
-  .share-modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
-  .share-modal canvas { width: 100%; border-radius: 4px; border: 1px solid var(--rule); }
-  .share-actions { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
-  .share-actions button { padding: 7px 16px; border-radius: var(--radius); font: 600 14px var(--font); cursor: pointer; }
-  .btn-download { background: var(--ink); color: var(--sheet); border: 1px solid var(--ink); }
-  .btn-download:hover { background: #2B3A4A; }
-  .btn-cancel { background: transparent; border: 1px solid var(--rule-strong); color: var(--ink-2); }
-  .btn-cancel:hover { color: var(--ink); }
+  .drawer-title { font-size: 16px; font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+  .drawer-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12.5px; color: var(--dim); margin-top: 4px; }
+  .icon-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; }
+  .icon-btn:hover { color: var(--text); border-color: #3A4256; }
+  .drawer-body { padding: 18px 22px 28px; display: grid; gap: 18px; }
+  .mini-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .mini-kpis div { background: var(--surface); padding: 10px 12px; }
+  .mini-kpis span { display: block; font-size: 12px; color: var(--dim); }
+  .mini-kpis b { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .mini-kpis .gold { color: var(--gold); }
+  @media (max-width: 560px) { .mini-kpis { grid-template-columns: repeat(2, 1fr); } }
+  .section-label { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .section-label small { font-weight: 400; color: var(--dim); font-size: 12.5px; }
+  .callout { padding: 10px 14px; border-radius: 10px; background: var(--raised); border-left: 3px solid var(--dim); color: var(--muted); }
+  .callout b { display: block; color: var(--text); font-weight: 600; margin-bottom: 2px; }
+  .callout.warn { border-left-color: var(--up); }
+  .callout.ok { border-left-color: var(--down); }
+  .callout.info { border-left-color: var(--c-input); }
+  .turns { list-style: none; display: grid; }
+  .turn { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; padding: 10px 6px; margin: 0 -6px; border-radius: 8px; border-top: 1px solid var(--line-soft); }
+  .turn:first-child { border-top: 0; }
+  .turn.flash { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { background: rgba(233, 180, 76, 0.18); } to { background: transparent; } }
+  .turn-num { color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
+  .turn-text { word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .turn-text.none { color: var(--dim); font-style: italic; }
+  .turn-right { text-align: right; white-space: nowrap; font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .turn-right b { display: block; font-size: 14px; font-weight: 600; color: var(--gold); }
+
+  /* ---- Share card ---- */
+  .modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(5, 7, 12, 0.7); padding: 16px; }
+  .modal-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; width: min(680px, 100%); }
+  .modal-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+  .modal-card canvas { width: 100%; border-radius: 8px; border: 1px solid var(--line); display: block; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .btn.primary { background: var(--gold); color: #1A1406; border-color: var(--gold); }
+  .btn.primary:hover { color: #1A1406; filter: brightness(1.06); }
+
+  @media (max-width: 640px) {
+    .topbar-inner, .wrap { padding-left: 16px; padding-right: 16px; }
+    .table-scroll { margin: 0 -20px; }
+    .actions { margin-left: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 
 <div id="loading" class="loading">
   <div class="spinner"></div>
-  <div class="loading-text">Reading your Claude Code sessions...</div>
+  <div>Reading your Claude Code sessions…</div>
 </div>
 
-<div id="app" class="container" style="display:none">
-
-  <!-- Header -->
-  <div class="header">
-    <div class="header-left">
-      <div class="logo-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#FBFCF9" stroke-width="2.5" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Claude Spend</div>
+      <div class="filters">
+        <div class="seg" id="rangePresets" role="group" aria-label="Date range">
+          <button data-days="1">Today</button>
+          <button data-days="7">7D</button>
+          <button data-days="30">30D</button>
+          <button data-days="90">90D</button>
+          <button data-days="all">All</button>
+        </div>
+        <div class="daterange">
+          <input class="field" type="date" id="fromDate" aria-label="From date">
+          <span>–</span>
+          <input class="field" type="date" id="toDate" aria-label="To date">
+        </div>
+        <select class="field" id="accountSelect" aria-label="Account" hidden></select>
       </div>
-      <h1>Claude Spend</h1>
-    </div>
-    <div class="header-right">
-      <span id="dateRange" class="date-range"></span>
-      <button class="refresh-btn" onclick="generateShareCard()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-        Share stats
-      </button>
-      <button class="refresh-btn" onclick="refreshData()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-        Refresh
-      </button>
-    </div>
-  </div>
-
-  <!-- Filters -->
-  <div class="filter-bar">
-    <div class="filter-group" id="rangePresets" role="group" aria-label="Date range">
-      <button data-days="1">Today</button>
-      <button data-days="7">7 days</button>
-      <button data-days="30">30 days</button>
-      <button data-days="90">90 days</button>
-      <button data-days="all">All time</button>
-    </div>
-    <input type="date" id="fromDate" aria-label="From date" title="From (inclusive)">
-    <span class="filter-sep">to</span>
-    <input type="date" id="toDate" aria-label="To date" title="To (inclusive)">
-    <select id="accountSelect" aria-label="Account" title="Account" style="display:none"></select>
-  </div>
-
-  <!-- Warnings banner -->
-  <div id="warningsBanner" class="warnings-banner"></div>
-
-  <!-- Ledger line -->
-  <div class="stats-row" id="statsRow"></div>
-
-  <!-- Charts -->
-  <div class="charts-grid">
-    <div class="chart-card">
-      <div class="filter-group chart-toggle" id="dailyMetric" role="group" aria-label="Chart metric">
-        <button data-metric="tokens" class="active">Tokens</button>
-        <button data-metric="cost">Cost</button>
-      </div>
-      <h3 id="dailyChartTitle">Tokens per day</h3>
-      <canvas id="dailyChart"></canvas>
-      <div class="legend" id="dailyLegend">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--t-input)"></div> Input</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--t-write)"></div> Cache writes</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--t-read)"></div> Cache reads</div>
-        <div class="legend-item"><div class="legend-dot" style="background:var(--t-output)"></div> Output</div>
+      <div class="actions">
+        <button class="btn" id="refreshBtn" title="Re-read session files">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Refresh
+        </button>
+        <button class="btn" id="shareBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          Share
+        </button>
       </div>
     </div>
-    <div class="chart-card">
-      <h3>By model</h3>
-      <canvas id="modelChart"></canvas>
-      <div id="modelLegend" class="legend" style="flex-direction:column; gap:8px; margin-top:16px;"></div>
-    </div>
-  </div>
+  </header>
 
-  <!-- Insights -->
-  <div id="insightsSection" class="insights-section" style="display:none">
-    <div class="section-header">
-      <h2 class="section-title">Insights</h2>
-    </div>
-    <div id="insightsList"></div>
-  </div>
+  <main class="wrap" id="main">
+    <div id="notice" class="notice" hidden></div>
 
-  <!-- Projects (temporarily hidden - TODO: fix prompt extraction) -->
+    <section class="kpis" id="kpis" aria-label="Summary"></section>
 
-  <!-- Most Expensive Prompts -->
-  <div class="top-prompts">
-    <div class="section-header">
-      <h2 class="section-title has-tooltip has-tooltip-below">Most expensive prompts<div class="tooltip">Your top 20 turns ranked by API-equivalent cost. A turn is your message plus every tool call and subagent run it started.</div></h2>
-    </div>
-    <div class="prompts-card" id="topPromptsList"></div>
-  </div>
-
-  <!-- Drill-down -->
-  <div id="drilldown" class="drilldown">
-    <div class="drilldown-header">
-      <div>
-        <div id="drilldownTitle" class="drilldown-title"></div>
-        <div id="drilldownMeta" class="drilldown-meta"></div>
-      </div>
-      <button class="drilldown-close" onclick="closeDrilldown()" aria-label="Close session">&times;</button>
-    </div>
-    <div id="turnChartWrap" style="margin-bottom:16px;display:none">
-      <h3 style="margin:0 0 2px">Cost per turn</h3>
-      <span style="display:block;font-size:13px;color:var(--ink-3);margin:0 0 10px">Each dot is one turn: your message and Claude's full response. Costs are API-equivalent.</span>
-      <canvas id="turnCostChart"></canvas>
-    </div>
-    <div id="turnChartInsight" style="display:none;margin-bottom:16px;padding:10px 14px;border:1px solid var(--rule)">
-      <div style="font-size:14px;font-weight:600;margin-bottom:3px" id="turnChartInsightTitle"></div>
-      <div style="font-size:13px;color:var(--ink-2);line-height:1.55;max-width:80ch" id="turnChartInsightBody"></div>
-    </div>
-    <div id="queryList" class="query-list"></div>
-  </div>
-
-  <!-- All Sessions -->
-  <div class="sessions-section">
-    <div class="section-header">
-      <h2 class="section-title">Sessions</h2>
-    </div>
-    <div class="sessions-toolbar">
-      <input type="search" class="session-search" id="searchInput" placeholder="Search prompts, models, projects, accounts" aria-label="Search sessions">
-      <span id="sessionCount" class="session-count"></span>
-    </div>
-    <div class="sessions-card">
-      <table class="sessions-table">
-        <thead>
-          <tr>
-            <th data-sort="date">Date</th>
-            <th data-sort="prompt">What you asked</th>
-            <th data-sort="model" class="has-tooltip has-tooltip-below">Model<div class="tooltip">The model used for most of this conversation.</div></th>
-            <th data-sort="queries" style="text-align:right" class="has-tooltip has-tooltip-below">Messages<div class="tooltip">Responses in this conversation, including automatic tool calls and subagent work.</div></th>
-            <th data-sort="total" style="text-align:right" class="has-tooltip has-tooltip-below">Tokens<div class="tooltip">All tokens in this conversation. Long conversations cost more because Claude re-reads everything each turn.</div></th>
-            <th data-sort="input" style="text-align:right" class="has-tooltip has-tooltip-below">Read<div class="tooltip">Fresh input tokens: your messages and new context. Cached context is counted in Tokens.</div></th>
-            <th data-sort="output" style="text-align:right" class="has-tooltip has-tooltip-below">Written<div class="tooltip">Tokens Claude wrote back: responses, code, explanations.</div></th>
-            <th data-sort="cost" style="text-align:right" class="sorted has-tooltip has-tooltip-below">Cost<div class="tooltip">API-equivalent cost, including subagents this conversation started. Subscriptions bill differently.</div></th>
-          </tr>
-        </thead>
-        <tbody id="sessionsBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- How Tokens Work -->
-  <div class="how-tokens">
-    <div class="how-tokens-toggle" role="button" tabindex="0" onclick="this.parentElement.classList.toggle('expanded')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
-      <h3>How Claude Code tokens work</h3>
-      <div class="how-tokens-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
-    </div>
-    <div class="how-tokens-body">
-      <p>Every time you send a message, Claude re-reads your entire conversation from the beginning, not just your latest message. That's why tokens add up fast.</p>
-
-      <div class="how-tokens-example">
-        <div class="how-tokens-example-title">A 3-message conversation</div>
-        <div class="how-tokens-step">
-          <span class="step-label">Message 1</span>
-          <span class="step-desc">You send "Help me fix this bug." Claude reads it fresh (<span style="color:var(--t-input)">input</span>) and saves the conversation to cache (<span style="color:var(--t-write)">cache write</span>).</span>
-          <span class="step-tokens">~4K tokens</span>
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2 id="chartTitle">Daily spend</h2>
+          <p class="sub" id="chartSub"></p>
         </div>
-        <div class="how-tokens-step">
-          <span class="step-label">Message 2</span>
-          <span class="step-desc">You reply "Try the other file." Claude reuses message 1 from cache (<span style="color:var(--t-read)">cache read</span>), processes only your new message fresh (<span style="color:var(--t-input)">input</span>), then saves the updated conversation (<span style="color:var(--t-write)">cache write</span>).</span>
-          <span class="step-tokens">~8K tokens</span>
-        </div>
-        <div class="how-tokens-step">
-          <span class="step-label">Message 3</span>
-          <span class="step-desc">Claude reuses messages 1–2 from cache (<span style="color:var(--t-read)">cache read</span>) and processes your new message fresh (<span style="color:var(--t-input)">input</span>). Claude's reply is <span style="color:var(--t-output)">output</span>.</span>
-          <span class="step-tokens">~14K tokens</span>
-        </div>
-        <div class="how-tokens-total">Without caching, every message would be processed at full price.</div>
-      </div>
-
-      <div class="how-tokens-types">
-        <div class="how-tokens-type">
-          <div class="how-tokens-dot" style="background:var(--t-input)"></div>
-          <div><strong>Input:</strong> your message and new context, processed fresh at full price.</div>
-        </div>
-        <div class="how-tokens-type">
-          <div class="how-tokens-dot" style="background:var(--t-write)"></div>
-          <div><strong>Cache writes:</strong> Claude saves the conversation so it doesn't re-process it next time. 1.25x input for a 5-minute cache, 2x for the 1-hour cache Claude Code mostly uses.</div>
-        </div>
-        <div class="how-tokens-type">
-          <div class="how-tokens-dot" style="background:var(--t-read)"></div>
-          <div><strong>Cache reads:</strong> follow-up messages reuse the saved context at 10x to 40x less than input, depending on the model.</div>
-        </div>
-        <div class="how-tokens-type">
-          <div class="how-tokens-dot" style="background:var(--t-output)"></div>
-          <div><strong>Output:</strong> what Claude writes back. The most expensive per token, usually the smallest amount.</div>
+        <div class="seg" id="metricToggle" role="group" aria-label="Chart metric">
+          <button data-metric="cost" class="active">Cost</button>
+          <button data-metric="tokens">Tokens</button>
         </div>
       </div>
+      <div class="chart-wrap"><canvas id="dailyChart" aria-label="Daily usage chart"></canvas></div>
+      <div class="legend" id="dailyLegend"></div>
+    </section>
 
-      <div class="how-tokens-tip">
-        Use <code>/clear</code> when you switch tasks. It resets the conversation so Claude stops re-reading context you no longer need.
-      </div>
+    <div class="grid-2">
+      <section class="panel">
+        <div class="panel-head"><div><h2>Models</h2><p class="sub">Cost by model in this range</p></div></div>
+        <div class="bars" id="models"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><div><h2>Projects</h2><p class="sub">Cost by working directory</p></div></div>
+        <div class="bars" id="projects"></div>
+      </section>
     </div>
-  </div>
 
-  <div class="footer">
-    Runs entirely on your machine: it reads your local Claude Code files and sends nothing anywhere. Costs are API list-price equivalents, not your plan's bill.<br>
-    Originally made by <a href="https://www.linkedin.com/in/writetoaniketparihar/" target="_blank" rel="noopener">Aniket</a>, maintained at <a href="https://github.com/myselfshravan/claude-spend" target="_blank" rel="noopener">myselfshravan/claude-spend</a>.
-  </div>
+    <section class="panel" id="insightsPanel" hidden>
+      <div class="panel-head"><div><h2>Insights</h2><p class="sub">Patterns in how this range was spent</p></div></div>
+      <div id="insights"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Most expensive prompts</h2>
+          <p class="sub">A turn is your message plus every tool call and subagent run it started.</p>
+        </div>
+      </div>
+      <ol class="prompts" id="prompts"></ol>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <div><h2>Sessions</h2><p class="sub" id="sessionSub"></p></div>
+        <input type="search" class="search" id="search" placeholder="Search prompts, projects, models" aria-label="Search sessions">
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th data-sort="date"><button>Date</button></th>
+              <th data-sort="prompt"><button>What you asked</button></th>
+              <th data-sort="model"><button>Model</button></th>
+              <th data-sort="queries" class="r"><button>Messages</button></th>
+              <th data-sort="total" class="r"><button>Tokens</button></th>
+              <th data-sort="cost" class="r"><button>Cost</button></th>
+            </tr>
+          </thead>
+          <tbody id="sessionsBody"></tbody>
+        </table>
+      </div>
+      <div class="table-foot">
+        <span id="sessionCount"></span>
+        <button class="linkbtn" id="moreSessions" hidden>Show 25 more</button>
+      </div>
+    </section>
+
+    <details class="panel explainer">
+      <summary>How Claude Code tokens are billed</summary>
+      <div class="explainer-body">
+        <p>Each message re-sends your whole conversation. Prompt caching keeps that affordable: earlier context is written to a cache once, then read back cheaply on every later turn.</p>
+        <dl>
+          <dt><i class="sw" style="background:var(--c-input)"></i>Input</dt><dd>Your new message and fresh context, at the full input price.</dd>
+          <dt><i class="sw" style="background:var(--c-write)"></i>Cache writes</dt><dd>Saving context for reuse: 1.25x input for a 5-minute cache, 2x for the 1-hour cache Claude Code mostly uses.</dd>
+          <dt><i class="sw" style="background:var(--c-read)"></i>Cache reads</dt><dd>Reusing saved context, 10x to 40x cheaper than input depending on the model. Usually most of your tokens.</dd>
+          <dt><i class="sw" style="background:var(--c-output)"></i>Output</dt><dd>What Claude writes. The highest price per token, but the smallest share.</dd>
+        </dl>
+        <p>Use <code>/clear</code> when you switch tasks so later turns stop re-reading context you no longer need.</p>
+      </div>
+    </details>
+
+    <footer id="footer"></footer>
+  </main>
 </div>
 
-<!-- Share card overlay -->
-<div id="shareOverlay" class="share-overlay" onclick="if(event.target===this)closeShareCard()">
-  <div class="share-modal">
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true">
+  <div class="drawer-head">
+    <div>
+      <div class="drawer-title" id="drawerTitle"></div>
+      <div class="drawer-meta" id="drawerMeta"></div>
+    </div>
+    <button class="icon-btn" id="drawerClose" aria-label="Close session">&times;</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<div class="modal" id="shareModal" hidden>
+  <div class="modal-card" role="dialog" aria-label="Share your stats">
     <h3>Share your stats</h3>
     <canvas id="shareCanvas" width="1200" height="630"></canvas>
-    <div class="share-actions">
-      <button class="btn-cancel" onclick="closeShareCard()">Cancel</button>
-      <button class="btn-download" onclick="downloadShareCard()">Download PNG</button>
+    <div class="modal-actions">
+      <button class="btn" id="shareCancel">Close</button>
+      <button class="btn primary" id="shareDownload">Download PNG</button>
     </div>
   </div>
 </div>
 
+<div class="tip" id="tip" hidden></div>
+
 <script>
+// ---------- State ----------
 let DATA = null;
-let currentSort = { key: 'cost', dir: 'desc' };
+let metric = 'cost';
+let sort = { key: 'cost', dir: 'desc' };
+let search = '';
+let sessionLimit = 25;
+let hoverDay = -1;
 
-// Canvas colors, read from the CSS tokens so charts match the page
-const INK = (() => {
-  const css = getComputedStyle(document.documentElement);
-  const v = name => css.getPropertyValue(name).trim();
-  return {
-    ink: v('--ink'), ink2: v('--ink-2'), ink3: v('--ink-3'), rule: v('--rule'), ruleStrong: v('--rule-strong'),
-    red: v('--red'), blue: v('--blue'), green: v('--green'), ochre: v('--ochre'), sheet: v('--sheet'),
-    input: v('--blue'), write: v('--t-write'), read: v('--t-read'), output: v('--green'),
-  };
-})();
-const CHART_FONT = "'Schibsted Grotesk', system-ui, sans-serif";
-let searchQuery = '';
-let dailyMetric = 'tokens';
-
-// Date range + account filters, mirrored in the URL so a view can be bookmarked
 const FILTERS = (() => {
   const p = new URLSearchParams(location.search);
   const date = v => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : '');
   return { from: date(p.get('from')), to: date(p.get('to')), account: p.get('account') || 'all' };
 })();
 
+const rootStyle = getComputedStyle(document.documentElement);
+const C = name => rootStyle.getPropertyValue(name).trim();
+const COL = {
+  text: C('--text'), muted: C('--muted'), dim: C('--dim'), line: C('--line'), lineSoft: C('--line-soft'),
+  raised: C('--raised'), gold: C('--gold'),
+  input: C('--c-input'), write: C('--c-write'), read: C('--c-read'), output: C('--c-output'),
+};
+const FONT = "'Geist', system-ui, sans-serif";
+const SERIES = [
+  { key: 'inputTokens', label: 'Input', color: COL.input },
+  { key: 'cacheCreationTokens', label: 'Cache writes', color: COL.write },
+  { key: 'cacheReadTokens', label: 'Cache reads', color: COL.read },
+  { key: 'outputTokens', label: 'Output', color: COL.output },
+];
+
+// ---------- Formatting ----------
+function fmt(n) {
+  if (n == null || isNaN(n)) return '0';
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e4) return (n / 1e3).toFixed(0) + 'K';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return Math.round(n).toLocaleString();
+}
+const fmtFull = n => (n || 0).toLocaleString();
+function fmtCost(n) {
+  if (!n || isNaN(n)) return '$0';
+  if (n >= 1000) return '$' + Math.round(n).toLocaleString();
+  if (n >= 100) return '$' + n.toFixed(0);
+  if (n >= 0.01) return '$' + n.toFixed(2);
+  return '<$0.01';
+}
+// Axis ticks are already rounded by niceMax, so whole dollars need no decimals
+const axisCost = v => (v >= 10 || Number.isInteger(v) ? '$' + Math.round(v).toLocaleString() : fmtCost(v));
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function formatDate(d, withYear) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-').map(Number);
+  const showYear = withYear || y !== new Date().getFullYear();
+  return `${MONTHS[m - 1]} ${day}${showYear ? ', ' + y : ''}`;
+}
+function formatRange(from, to) {
+  if (!from) return '';
+  if (from === to) return formatDate(from);
+  return `${formatDate(from)} – ${formatDate(to)}`;
+}
+function localISODate(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function daysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return localISODate(d); }
+
+function modelShort(m) {
+  let match = m.match(/^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d{1,2}))?(?=$|-|\[)/i);
+  if (match) {
+    const name = match[1][0].toUpperCase() + match[1].slice(1);
+    return `${name} ${match[2]}${match[3] ? '.' + match[3] : ''}${/\[1m\]$/i.test(m) ? ' (1M)' : ''}`;
+  }
+  match = m.match(/^claude-(\d+)(?:-(\d+))?-(opus|sonnet|haiku)/i);
+  if (match) return `${match[3][0].toUpperCase() + match[3].slice(1)} ${match[1]}${match[2] ? '.' + match[2] : ''}`;
+  return m;
+}
+function modelColor(m) {
+  if (/opus/i.test(m)) return COL.input;
+  if (/sonnet/i.test(m)) return COL.output;
+  if (/haiku/i.test(m)) return COL.read;
+  if (/fable|mythos/i.test(m)) return COL.write;
+  return COL.dim;
+}
+function projectShort(p) {
+  let s = p.replace(/^[A-Za-z]--/, '').replace(/^-+/, '');
+  if (/^(?:Users|home)-[^-]+$/.test(s)) return '~ (home)';
+  const known = /^(?:Users|home|user)-[^-]+-|^(?:GitHub|GitLab|git|Projects|projects|workspace|Workspace|Desktop|Documents|source|src|dev|Dev|code|Code|repos|Repos|PycharmProjects)-/;
+  let prev;
+  do { prev = s; s = s.replace(known, ''); } while (s !== prev && s.length > 0);
+  return s || p;
+}
+const multiAccount = () => FILTERS.account === 'all' && (DATA?.filters?.accounts || []).length > 1;
+const accountChip = a => (multiAccount() ? `<span class="chip">${escapeHtml(a)}</span>` : '');
+
+// ---------- Tooltip ----------
+const tipEl = document.getElementById('tip');
+function showTip(html, x, y) {
+  tipEl.innerHTML = html;
+  tipEl.hidden = false;
+  const r = tipEl.getBoundingClientRect();
+  let left = x + 14, top = y + 14;
+  if (left + r.width > innerWidth - 8) left = x - r.width - 14;
+  if (top + r.height > innerHeight - 8) top = y - r.height - 14;
+  tipEl.style.left = Math.max(8, left) + 'px';
+  tipEl.style.top = Math.max(8, top) + 'px';
+}
+function hideTip() { tipEl.hidden = true; }
+function tipFor(el) { const r = el.getBoundingClientRect(); showTip(escapeHtml(el.dataset.tip), r.left, r.bottom - 6); }
+document.addEventListener('mouseover', e => { const el = e.target.closest('[data-tip]'); if (el) tipFor(el); });
+document.addEventListener('mouseout', e => { if (e.target.closest('[data-tip]')) hideTip(); });
+document.addEventListener('focusin', e => { const el = e.target.closest('[data-tip]'); if (el) tipFor(el); });
+document.addEventListener('focusout', e => { if (e.target.closest('[data-tip]')) hideTip(); });
+const help = text => `<span class="help" tabindex="0" role="img" aria-label="${escapeHtml(text)}" data-tip="${escapeHtml(text)}">?</span>`;
+
+// ---------- Data ----------
 function filterQuery() {
   const p = new URLSearchParams();
   if (FILTERS.from) p.set('from', FILTERS.from);
@@ -686,1077 +614,697 @@ function filterQuery() {
   return p.toString();
 }
 
-function localISODate(d) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function fmtCost(n) {
-  if (n == null || isNaN(n)) return '$0';
-  if (n >= 1000) return '$' + Math.round(n).toLocaleString();
-  if (n >= 10) return '$' + n.toFixed(0);
-  if (n >= 0.01) return '$' + n.toFixed(2);
-  return n > 0 ? '<$0.01' : '$0';
-}
-
-function fmt(n) {
-  if (n == null || isNaN(n)) return '0';
-  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + 'B';
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 10_000) return (n / 1_000).toFixed(0) + 'K';
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
-  return n.toLocaleString();
-}
-function fmtFull(n) {
-  if (n == null || isNaN(n)) return '0';
-  return n.toLocaleString();
-}
-
-function modelClass(m) {
-  if (m.includes('opus')) return 'model-opus';
-  if (m.includes('sonnet')) return 'model-sonnet';
-  if (m.includes('haiku')) return 'model-haiku';
-  if (m.includes('fable') || m.includes('mythos')) return 'model-fable';
-  return 'model-unknown';
-}
-function modelShort(m) {
-  // New format: claude-{family}-{major}[-{minor}][-date][[1m]]
-  // e.g. claude-opus-5, claude-opus-5-5[1m], claude-haiku-4-5-20251001, claude-opus-4-20250514
-  let match = m.match(/^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d{1,2}))?(?=$|-|\[)/i);
-  if (match) {
-    const name = match[1].charAt(0).toUpperCase() + match[1].slice(1);
-    return name + ' ' + match[2] + (match[3] ? '.' + match[3] : '') + (/\[1m\]$/i.test(m) ? ' 1M' : '');
-  }
-  // Old format with sub-version: claude-3-5-{family} or claude-3-7-{family}
-  match = m.match(/^claude-(\d+)-(\d+)-(opus|sonnet|haiku)/i);
-  if (match) {
-    const name = match[3].charAt(0).toUpperCase() + match[3].slice(1);
-    return name + ' ' + match[1] + '.' + match[2];
-  }
-  // Old format: claude-3-{family}
-  match = m.match(/^claude-(\d+)-(opus|sonnet|haiku)/i);
-  if (match) {
-    const name = match[2].charAt(0).toUpperCase() + match[2].slice(1);
-    return name + ' ' + match[1];
-  }
-  if (m.includes('opus')) return 'Opus';
-  if (m.includes('sonnet')) return 'Sonnet';
-  if (m.includes('haiku')) return 'Haiku';
-  return m;
-}
-function projectShort(p) {
-  // Strip Windows drive prefix (e.g. D-- or C--)
-  let s = p.replace(/^[A-Za-z]--/, '').replace(/^-+/, '');
-  if (/^(?:Users|home)-[^-]+$/.test(s)) return '~';
-  // Iteratively strip known parent directory segments
-  const known = /^(?:Users|home|user)-[^-]+-|^(?:GitHub|GitLab|git|Projects|projects|workspace|Workspace|Desktop|Documents|source|src|dev|Dev|code|Code|repos|Repos)-/;
-  let prev;
-  do { prev = s; s = s.replace(known, ''); } while (s !== prev && s.length > 0);
-  return s || p;
-}
-function projectFull(p) {
-  // Show the raw encoded name with Windows drive restored for readability
-  return p.replace(/^([A-Za-z])--/, '$1:\\');
-}
-function escapeHtml(s) {
-  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
-}
-function formatDate(d) {
-  if (!d) return '';
-  const parts = d.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const year = parseInt(parts[0]) !== new Date().getFullYear() ? ` ${parts[0]}` : '';
-  return `${months[parseInt(parts[1])-1]} ${parseInt(parts[2])}${year}`;
-}
-
 async function fetchData() {
+  const main = document.getElementById('main');
+  if (DATA) main.classList.add('busy');
   try {
-    const query = filterQuery();
-    history.replaceState(null, '', query ? '?' + query : location.pathname);
-    const res = await fetch('/api/data' + (query ? '?' + query : ''));
+    const q = filterQuery();
+    history.replaceState(null, '', q ? '?' + q : location.pathname);
+    const res = await fetch('/api/data' + (q ? '?' + q : ''));
     const json = await res.json();
-    if (!res.ok || json.error) {
-      showError(json.error || `Server returned ${res.status}`);
-      return;
-    }
-    if (!json.totals || !json.sessions) {
-      showError('No session data found. Make sure you have used Claude Code at least once.');
-      return;
-    }
+    if (!res.ok || json.error) return showError(json.error || `Server returned ${res.status}`);
     DATA = json;
+    sessionLimit = 25;
     render();
   } catch (err) {
-    showError('Failed to load data: ' + err.message);
+    showError('Could not load data: ' + err.message);
+  } finally {
+    main.classList.remove('busy');
   }
-}
-function showError(msg) {
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('app').style.display = 'none';
-  let el = document.getElementById('error-display');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'error-display';
-    el.style.cssText = 'max-width:600px;margin:80px auto;padding:32px;text-align:center;font-family:inherit;';
-    document.body.appendChild(el);
-  }
-  const safe = msg.replace(/</g, '&lt;');
-  let hint = '';
-  if (safe.includes('ENOENT') || safe.includes('not found')) {
-    hint = '<p style="color:#94a3b8;font-size:13px;margin:0 0 20px">Make sure you have used Claude Code at least once. The data directory is created automatically.</p>';
-  } else if (safe.includes('EPERM') || safe.includes('EACCES') || safe.includes('ermission')) {
-    hint = '<p style="color:#94a3b8;font-size:13px;margin:0 0 20px">Try running with elevated permissions, or check file permissions on your ~/.claude directory.</p>';
-  }
-  el.innerHTML = '<div style="font-size:48px;margin-bottom:16px">&#9888;&#65039;</div>' +
-    '<h2 style="margin:0 0 12px;color:#1a1a2e">Something went wrong</h2>' +
-    '<p style="color:#64748b;margin:0 0 12px;line-height:1.6">' + safe + '</p>' + hint +
-    '<button onclick="location.reload()" style="padding:8px 20px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;font-size:14px">Retry</button>';
-}
-function renderWarnings() {
-  const warnings = DATA.warnings || [];
-  const banner = document.getElementById('warningsBanner');
-  if (!warnings.length) { banner.classList.remove('visible'); return; }
-  banner.classList.add('visible');
-  banner.innerHTML = '<button class="warn-close" onclick="this.parentElement.classList.remove(\'visible\')">&times;</button>' +
-    '<strong>Heads up:</strong> <ul>' + warnings.map(w => '<li>' + escapeHtml(w.message) + '</li>').join('') + '</ul>';
-}
-async function refreshData() {
-  document.getElementById('loading').style.display = 'flex';
-  document.getElementById('app').style.display = 'none';
-  const errEl = document.getElementById('error-display');
-  if (errEl) errEl.remove();
-  try { await fetch('/api/refresh'); } catch {}
-  await fetchData();
 }
 
-// Filter controls
+function showError(msg) {
+  document.getElementById('app').hidden = true;
+  const el = document.getElementById('loading');
+  el.hidden = false;
+  el.innerHTML = `<div style="max-width:520px;text-align:center;display:grid;gap:10px">
+    <div style="font-size:16px;font-weight:600;color:var(--text)">Couldn't read your Claude Code data</div>
+    <div>${escapeHtml(msg)}</div>
+    <div style="color:var(--dim)">Check that Claude Code has run at least once on this machine, or pass the data folder with <code>--dir</code>.</div>
+    <div><button class="btn" onclick="location.reload()">Try again</button></div></div>`;
+}
+
+function applyFilters(changes) {
+  Object.assign(FILTERS, changes);
+  closeDrawer();
+  fetchData();
+}
+
+// ---------- Render ----------
+function render() {
+  document.getElementById('loading').hidden = true;
+  document.getElementById('app').hidden = false;
+  renderFilters();
+  renderNotice();
+  renderKpis();
+  renderDaily();
+  renderModels();
+  renderProjects();
+  renderInsights();
+  renderPrompts();
+  renderSessions();
+  renderFooter();
+}
+
 function renderFilters() {
   const f = DATA.filters || {};
   const avail = f.availableRange || {};
+  const today = localISODate(new Date());
   const fromEl = document.getElementById('fromDate');
   const toEl = document.getElementById('toDate');
   fromEl.value = FILTERS.from || avail.from || '';
   toEl.value = FILTERS.to || avail.to || '';
-  for (const el of [fromEl, toEl]) {
-    el.min = avail.from || '';
-    el.max = localISODate(new Date());
-  }
+  for (const el of [fromEl, toEl]) { el.min = avail.from || ''; el.max = today; }
 
-  // Highlight the preset that matches the current range
-  const today = localISODate(new Date());
   document.querySelectorAll('#rangePresets button').forEach(b => {
-    let active;
-    if (b.dataset.days === 'all') {
-      active = !FILTERS.from && !FILTERS.to;
-    } else {
-      const d = new Date();
-      d.setDate(d.getDate() - (parseInt(b.dataset.days) - 1));
-      active = FILTERS.from === localISODate(d) && (!FILTERS.to || FILTERS.to === today);
-    }
+    const active = b.dataset.days === 'all'
+      ? !FILTERS.from && !FILTERS.to
+      : FILTERS.from === daysAgo(+b.dataset.days - 1) && (!FILTERS.to || FILTERS.to === today);
     b.classList.toggle('active', active);
   });
 
   const select = document.getElementById('accountSelect');
   const accounts = f.accounts || [];
-  select.style.display = accounts.length > 1 ? '' : 'none';
-  const sources = f.sources || [];
+  select.hidden = accounts.length < 2;
   select.innerHTML = '<option value="all">All accounts</option>' + accounts.map(a => {
-    const src = sources.find(s => s.label === a);
-    return `<option value="${escapeHtml(a)}" title="${escapeHtml(src ? src.dir : '')}">${escapeHtml(a)}</option>`;
+    const src = (f.sources || []).find(s => s.label === a);
+    return `<option value="${escapeHtml(a)}" title="${escapeHtml(src?.dir || '')}">${escapeHtml(a)}</option>`;
   }).join('');
   select.value = accounts.includes(FILTERS.account) ? FILTERS.account : 'all';
 }
 
-function applyFilters(changes) {
-  Object.assign(FILTERS, changes);
-  closeDrilldown();
-  fetchData();
+let noticeDismissed = false;
+function renderNotice() {
+  const el = document.getElementById('notice');
+  const warnings = DATA.warnings || [];
+  if (!warnings.length || noticeDismissed) { el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = `<div><strong>Heads up.</strong> ${warnings.map(w => escapeHtml(w.message)).join(' ')}</div>
+    <button class="close" aria-label="Dismiss" onclick="noticeDismissed=true;this.parentElement.hidden=true">&times;</button>`;
 }
 
-document.querySelectorAll('#rangePresets button').forEach(b => {
-  b.addEventListener('click', () => {
-    if (b.dataset.days === 'all') return applyFilters({ from: '', to: '' });
-    const d = new Date();
-    d.setDate(d.getDate() - (parseInt(b.dataset.days) - 1));
-    applyFilters({ from: localISODate(d), to: '' });
-  });
-});
-document.getElementById('fromDate').addEventListener('change', e => applyFilters({ from: e.target.value }));
-document.getElementById('toDate').addEventListener('change', e => applyFilters({ to: e.target.value }));
-document.getElementById('accountSelect').addEventListener('change', e => applyFilters({ account: e.target.value }));
-document.querySelectorAll('#dailyMetric button').forEach(b => {
-  b.addEventListener('click', () => {
-    dailyMetric = b.dataset.metric;
-    document.querySelectorAll('#dailyMetric button').forEach(x => x.classList.toggle('active', x === b));
-    renderDailyChart();
-  });
-});
-
-function render() {
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  renderFilters();
-  renderWarnings();
-  renderStats();
-  renderInsights();
-  renderDailyChart();
-  renderModelChart();
-  // renderProjectBreakdown(); // temporarily disabled
-  renderTopPrompts();
-  renderSessions();
-}
-
-// Stats
-function renderStats() {
+function renderKpis() {
   const t = DATA.totals;
-  const range = t.dateRange ? `${formatDate(t.dateRange.from)} - ${formatDate(t.dateRange.to)}` : '';
-  document.getElementById('dateRange').textContent = range;
-
-  const avgTokensPerMsg = t.totalQueries > 0 ? Math.round(t.totalTokens / t.totalQueries) : 0;
   const days = (DATA.dailyUsage || []).length;
+  const avgPerMsg = t.totalQueries ? t.totalTokens / t.totalQueries : 0;
 
-  // Read left to right like a ledger line; the cost total comes last
-  const cards = [
-    { label: 'Tokens', value: fmt(t.totalTokens),
-      sub: [`${fmt(t.totalCacheReadTokens || 0)} cache reads`, `${fmt(t.totalCacheCreationTokens || 0)} cache writes`, `${fmt(t.totalInputTokens)} input, ${fmt(t.totalOutputTokens)} output`],
-      tip: 'All tokens in this range. Input is fresh context, cache writes save context for reuse, cache reads reuse it at a fraction of the price, output is what Claude writes.' },
+  let delta = '';
+  const prev = t.previous;
+  if (prev && prev.cost > 0) {
+    const pct = ((t.totalCost - prev.cost) / prev.cost) * 100;
+    delta = `<div class="delta ${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}%<span class="vs">vs ${fmtCost(prev.cost)}, ${formatRange(prev.from, prev.to)}</span></div>`;
+  } else if (prev) {
+    delta = `<div class="delta"><span class="vs">Nothing spent ${formatRange(prev.from, prev.to)}</span></div>`;
+  }
+
+  const kpis = [
+    { label: 'Tokens', value: fmt(t.totalTokens), sub: [`${fmt(t.totalCacheReadTokens)} cache reads`, `${fmt(t.totalCacheCreationTokens)} cache writes`, `${fmt(t.totalInputTokens)} input, ${fmt(t.totalOutputTokens)} output`],
+      tip: 'Every token in this range. Cache reads are usually the bulk: each turn re-reads the conversation from cache.' },
     { label: 'Conversations', value: fmtFull(t.totalSessions), sub: [`~${fmt(t.avgTokensPerSession)} tokens each`],
-      tip: 'Each Claude Code session counts as one conversation. Subagent runs are counted inside the conversation that started them.' },
-    { label: 'Messages', value: fmtFull(t.totalQueries), sub: [`~${fmt(avgTokensPerMsg)} tokens each`],
+      tip: 'Claude Code sessions with activity in this range. Subagent runs count inside the session that started them.' },
+    { label: 'Messages', value: fmtFull(t.totalQueries), sub: [`~${fmt(avgPerMsg)} tokens each`],
       tip: 'Every response Claude produced, including automatic tool calls and subagent work.' },
-    { label: 'Cache hit rate', value: `${((t.cacheHitRate || 0) * 100).toFixed(0)}%`, sub: [`${fmtCost(t.totalSaved || 0)} saved by caching`],
-      tip: 'Share of input tokens served from cache instead of processed fresh. Cached tokens cost 10x to 40x less, depending on the model.' },
-    { label: 'API-equivalent cost', value: fmtCost(t.totalCost), total: true,
-      sub: [
-        days > 0 ? `~${fmtCost(t.totalCost / days)} per active day` : '',
-        t.totalSubagentCost > 0 ? `${fmtCost(t.totalSubagentCost)} from subagents` : '',
-        t.unpricedTokens > 0 ? `${fmt(t.unpricedTokens)} tokens unpriced` : '',
-      ].filter(Boolean),
-      tip: 'What these tokens would cost at Anthropic API list prices (' + escapeHtml((DATA.filters && DATA.filters.pricingSource) || '') + '), including 1-hour cache writes and subagents. Subscriptions bill differently. Models without a known price are left out.' },
+    { label: 'Cache hit rate', value: `${((t.cacheHitRate || 0) * 100).toFixed(0)}%`, sub: [`${fmtCost(t.totalSaved)} saved by caching`],
+      tip: 'Share of input served from cache instead of processed fresh. Higher is cheaper.' },
   ];
+  const costSub = [
+    days ? `~${fmtCost(t.totalCost / days)} per active day` : '',
+    t.totalSubagentCost > 0 ? `${fmtCost(t.totalSubagentCost)} from subagents` : '',
+    t.unpricedTokens > 0 ? `${fmt(t.unpricedTokens)} tokens unpriced` : '',
+  ].filter(Boolean);
 
-  document.getElementById('statsRow').innerHTML = cards.map(c => `
-    <div class="stat-card${c.total ? ' total' : ''}">
-      <div class="stat-label has-tooltip" tabindex="0">${c.label}<span class="help-icon" aria-hidden="true">?</span><div class="tooltip" role="tooltip">${c.tip}</div></div>
-      <div class="stat-value">${c.value}</div>
-      <div class="stat-sub">${c.sub.map(s => `<span>${s}</span>`).join('')}</div>
-    </div>`).join('');
-}
-
-// Insights
-function renderInsights() {
-  const insights = DATA.insights || [];
-  const section = document.getElementById('insightsSection');
-  if (!insights.length) { section.style.display = 'none'; return; }
-
-  section.style.display = 'block';
-
-  document.getElementById('insightsList').innerHTML = insights.map(ins => {
-    const detailHtml = ins.description ? `<div class="insight-detail">${escapeHtml(ins.description)}</div>` : '';
-    const actionHtml = ins.action ? `<div class="insight-action-tip">${escapeHtml(ins.action)}</div>` : '';
-    return `<div class="insight-card ${ins.type}" tabindex="0" role="button" onclick="this.classList.toggle('expanded')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
-      <div class="insight-top">
-        <div class="insight-title">${escapeHtml(ins.title)}</div>
-        <div class="insight-arrow"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4.5L6 7.5L9 4.5"/></svg></div>
-      </div>
-      <div class="insight-expand">
-        ${detailHtml}
-        ${actionHtml}
-      </div>
+  document.getElementById('kpis').innerHTML = kpis.map(k => `
+    <div class="kpi">
+      <div class="kpi-label">${k.label}${help(k.tip)}</div>
+      <div class="kpi-value">${k.value}</div>
+      <div class="kpi-sub">${k.sub.map(s => `<span>${s}</span>`).join('')}</div>
+    </div>`).join('') + `
+    <div class="kpi cost">
+      <div class="kpi-label">API-equivalent cost${help('What these tokens would cost at Anthropic API list prices (' + (DATA.filters?.pricingSource || '') + '), including 1-hour cache writes and subagents. Subscriptions bill differently; models without a known price are left out.')}</div>
+      <div class="kpi-value">${fmtCost(t.totalCost)}</div>
+      ${delta}
+      <div class="kpi-sub">${costSub.map(s => `<span>${s}</span>`).join('')}</div>
     </div>`;
-  }).join('');
 }
 
-// Daily chart -- 3 color stacked bars
-function renderDailyChart() {
+// ---------- Daily chart ----------
+let dailyGeom = null;
+function renderDaily() {
+  const isCost = metric === 'cost';
+  document.getElementById('chartTitle').textContent = isCost ? 'Daily spend' : 'Daily tokens';
+  const range = DATA.totals.dateRange;
+  document.getElementById('chartSub').textContent = range
+    ? `${formatRange(range.from, range.to)}. Hover a day for details; click it to see just that day.`
+    : '';
+  document.getElementById('dailyLegend').innerHTML = isCost
+    ? `<span><i class="sw" style="background:${COL.gold}"></i>API-equivalent cost</span><span><i class="sw" style="background:${COL.muted};height:2px;width:12px"></i>Daily average</span>`
+    : SERIES.map(s => `<span><i class="sw" style="background:${s.color}"></i>${s.label}</span>`).join('');
+  drawDaily();
+}
+
+function drawDaily() {
   const canvas = document.getElementById('dailyChart');
   const ctx = canvas.getContext('2d');
-  const data = DATA.dailyUsage;
-  const isCost = dailyMetric === 'cost';
-  document.getElementById('dailyChartTitle').textContent = isCost ? 'Cost per day' : 'Tokens per day';
-  document.getElementById('dailyLegend').style.visibility = isCost ? 'hidden' : '';
-
+  const data = DATA.dailyUsage || [];
+  const isCost = metric === 'cost';
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.parentElement.clientWidth - 40;
+  const w = canvas.parentElement.clientWidth;
   const h = 260;
   canvas.width = w * dpr; canvas.height = h * dpr;
-  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-  ctx.scale(dpr, dpr);
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
+
   if (!data.length) {
-    ctx.font = `400 14px ${CHART_FONT}`; ctx.fillStyle = INK.ink3; ctx.textAlign = 'left';
-    ctx.fillText('No usage in this range. Pick a wider date range above.', 0, h / 2);
+    dailyGeom = null;
+    ctx.fillStyle = COL.dim; ctx.font = `400 13px ${FONT}`; ctx.textAlign = 'center';
+    ctx.fillText('No usage in this range. Try a wider date range.', w / 2, h / 2);
     return;
   }
 
-  const valueOf = d => isCost ? d.cost : d.totalTokens;
-  const maxTotal = Math.max(...data.map(valueOf)) || 1;
-  const startX = 60;
-  const gap = data.length > 60 ? 1 : 3;
-  const barW = Math.max(1, Math.min(32, (w - startX - 4) / data.length - gap));
-  const chartH = h - 36;
+  const value = d => isCost ? d.cost : d.totalTokens;
+  const max = niceMax(Math.max(...data.map(value)) || 1);
+  const left = 52, right = 4, top = 10, bottom = 26;
+  const plotW = w - left - right, plotH = h - top - bottom;
+  const slot = plotW / data.length;
+  const gap = slot > 10 ? Math.min(6, slot * 0.25) : slot > 4 ? 1 : 0;
+  const barW = Math.max(1, slot - gap);
+  dailyGeom = { left, slot, n: data.length };
 
-  // Ledger rules
-  ctx.font = `500 11px ${CHART_FONT}`;
-  ctx.fillStyle = INK.ink3;
-  ctx.textAlign = 'right';
+  // Grid
+  ctx.font = `400 11px ${FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = COL.dim;
   for (let i = 0; i <= 4; i++) {
-    const val = (maxTotal / 4) * i;
-    const y = Math.round(chartH - (chartH * i / 4) + 8) + 0.5;
-    ctx.fillText(isCost ? fmtCost(val) : fmt(val), startX - 10, y + 4);
-    ctx.strokeStyle = i === 0 ? INK.ruleStrong : INK.rule; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(w, y); ctx.stroke();
+    const y = Math.round(top + plotH - (plotH * i) / 4) + 0.5;
+    ctx.strokeStyle = i === 0 ? COL.line : COL.lineSoft; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(w - right, y); ctx.stroke();
+    const v = (max * i) / 4;
+    ctx.fillText(isCost ? axisCost(v) : fmt(v), left - 8, y + 4);
   }
 
-  // Flat fills, one per token type (cost uses red ink)
-  const inGrad = isCost ? INK.red : INK.input;
-  const cacheWriteGrad = INK.write;
-  const cacheReadGrad = INK.read;
-  const outGrad = INK.output;
-
-  const minH = 3; // minimum pixel height so small segments stay visible
-
+  // Bars
   data.forEach((d, i) => {
-    const x = startX + i * (barW + gap);
-    const baseY = chartH + 8;
-    const r = Math.min(2, barW / 2);
-    let y = baseY;
-
+    const x = left + i * slot + gap / 2;
+    ctx.globalAlpha = hoverDay >= 0 && hoverDay !== i ? 0.45 : 1;
     if (isCost) {
-      let costH = (d.cost / maxTotal) * chartH;
-      if (d.cost > 0) costH = Math.max(minH, costH);
-      ctx.fillStyle = inGrad;
-      ctx.beginPath(); roundedRect(ctx, x, y - costH, barW, costH, r); ctx.fill();
+      const bh = (d.cost / max) * plotH;
+      ctx.fillStyle = COL.gold;
+      roundTop(ctx, x, top + plotH - bh, barW, bh, Math.min(3, barW / 2));
       return;
     }
-
-    // Bottom: output (teal)
-    let outH = (d.outputTokens / maxTotal) * chartH;
-    if (d.outputTokens > 0) outH = Math.max(minH, outH);
-    if (outH > 0) {
-      ctx.fillStyle = outGrad;
-      ctx.beginPath(); roundedRect(ctx, x, y - outH, barW, outH, r); ctx.fill();
-      y -= outH;
-    }
-
-    // Cache reads (amber)
-    let cacheRH = ((d.cacheReadTokens || 0) / maxTotal) * chartH;
-    if ((d.cacheReadTokens || 0) > 0) cacheRH = Math.max(minH, cacheRH);
-    if (cacheRH > 0) {
-      ctx.fillStyle = cacheReadGrad;
-      ctx.beginPath(); roundedRect(ctx, x, y - cacheRH, barW, cacheRH, 0); ctx.fill();
-      y -= cacheRH;
-    }
-
-    // Cache writes (rose)
-    let cacheWH = ((d.cacheCreationTokens || 0) / maxTotal) * chartH;
-    if ((d.cacheCreationTokens || 0) > 0) cacheWH = Math.max(minH, cacheWH);
-    if (cacheWH > 0) {
-      ctx.fillStyle = cacheWriteGrad;
-      ctx.beginPath(); roundedRect(ctx, x, y - cacheWH, barW, cacheWH, 0); ctx.fill();
-      y -= cacheWH;
-    }
-
-    // Top: input (indigo)
-    let freshH = (d.inputTokens / maxTotal) * chartH;
-    if (d.inputTokens > 0) freshH = Math.max(minH, freshH);
-    if (freshH > 0) {
-      ctx.fillStyle = inGrad;
-      ctx.beginPath(); roundedRect(ctx, x, y - freshH, barW, freshH, r); ctx.fill();
-      y -= freshH;
-    }
+    let y = top + plotH;
+    const parts = SERIES.filter(s => (d[s.key] || 0) > 0);
+    parts.forEach((s, pi) => {
+      const bh = (d[s.key] / max) * plotH;
+      ctx.fillStyle = s.color;
+      if (pi === parts.length - 1) roundTop(ctx, x, y - bh, barW, bh, Math.min(3, barW / 2));
+      else ctx.fillRect(x, y - bh, barW, bh);
+      y -= bh;
+    });
   });
+  ctx.globalAlpha = 1;
 
-  // X labels
-  ctx.fillStyle = INK.ink3; ctx.textAlign = 'center';
-  ctx.font = `500 11px ${CHART_FONT}`;
-  const step = Math.max(1, Math.floor(data.length / 7));
+  // Average line for cost
+  if (isCost && data.length > 1) {
+    const avg = data.reduce((s, d) => s + d.cost, 0) / data.length;
+    const y = Math.round(top + plotH - (avg / max) * plotH) + 0.5;
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = COL.muted; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(w - right, y); ctx.stroke(); ctx.setLineDash([]);
+    // Label sits in a small pill at the right edge so it never sits on top of a bar
+    const label = `avg ${fmtCost(avg)}`;
+    ctx.font = `500 11px ${FONT}`;
+    const tw = ctx.measureText(label).width + 12;
+    const lx = w - right - tw;
+    ctx.fillStyle = '#0D1017'; ctx.strokeStyle = COL.line;
+    ctx.beginPath(); ctx.roundRect(lx, y - 9, tw, 18, 9); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = COL.text; ctx.textAlign = 'left';
+    ctx.fillText(label, lx + 6, y + 4);
+  }
+
+  // X labels: evenly spaced, never colliding with the final date
+  ctx.fillStyle = COL.dim; ctx.font = `400 11px ${FONT}`;
+  const maxLabels = Math.max(2, Math.floor(plotW / 70));
+  const step = Math.max(1, Math.ceil(data.length / maxLabels));
+  const last = data.length - 1;
   data.forEach((d, i) => {
-    const last = data.length - 1;
-    // Skip a regular label that would collide with the final date
-    if ((i % step === 0 && (i === last || last - i >= Math.ceil(step / 2))) || i === last) {
-      const x = startX + i * (barW + gap) + barW / 2;
-      const isLast = i === data.length - 1;
-      ctx.textAlign = isLast && data.length > 7 ? 'right' : 'center';
-      ctx.fillText(formatDate(d.date), isLast && data.length > 7 ? x + barW / 2 : x, chartH + 24);
-    }
+    if (i !== last && !(i % step === 0 && last - i >= step / 2)) return;
+    const center = left + i * slot + slot / 2;
+    let x = center;
+    ctx.textAlign = 'center';
+    if (data.length > 1 && i === last) { ctx.textAlign = 'right'; x = left + plotW; }
+    else if (data.length > 1 && i === 0) { ctx.textAlign = 'left'; x = left; }
+    ctx.fillText(formatDate(d.date), x, h - 8);
   });
 }
 
-function roundedRect(ctx, x, y, w, h, r) {
+// Round an axis maximum up so four gridlines land on clean values (1, 2, 2.5, 5 x 10^n per step)
+function niceMax(v) {
+  const step = v / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(step)));
+  const nice = [1, 2, 2.5, 5, 10].find(m => m * mag >= step) * mag;
+  return nice * 4;
+}
+
+function roundTop(ctx, x, y, w, h, r) {
   if (h <= 0) return;
-  r = Math.min(r, h / 2, w / 2);
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
+  r = Math.min(r, h, w / 2);
+  ctx.beginPath();
+  ctx.moveTo(x, y + h); ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y); ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r); ctx.lineTo(x + w, y + h);
+  ctx.closePath(); ctx.fill();
 }
 
-// By model: one ruled row per model, ordered by cost, with a share-of-cost bar
-function modelColor(m) {
-  if (m.includes('opus')) return INK.blue;
-  if (m.includes('sonnet')) return INK.green;
-  if (m.includes('haiku')) return INK.ochre;
-  if (m.includes('fable') || m.includes('mythos')) return INK.red;
-  return INK.ink3;
+function indexAt(e, geom) {
+  if (!geom) return -1;
+  const r = e.target.getBoundingClientRect();
+  const i = Math.floor((e.clientX - r.left - geom.left) / geom.slot);
+  return i >= 0 && i < geom.n ? i : -1;
 }
-function renderModelChart() {
-  document.getElementById('modelChart').style.display = 'none';
-  const legend = document.getElementById('modelLegend');
-  const data = DATA.modelBreakdown || [];
-  if (!data.length) { legend.innerHTML = '<div class="model-empty">No usage in this range.</div>'; return; }
+const dailyCanvas = document.getElementById('dailyChart');
+dailyCanvas.addEventListener('mousemove', e => {
+  const i = indexAt(e, dailyGeom);
+  if (i !== hoverDay) { hoverDay = i; drawDaily(); }
+  if (i < 0) return hideTip();
+  const d = DATA.dailyUsage[i];
+  showTip(`<div class="t-title">${formatDate(d.date, true)}</div>
+    <div class="t-row"><span>Cost</span><b class="t-gold">${fmtCost(d.cost)}</b></div>
+    ${SERIES.map(s => `<div class="t-row"><span><i class="sw" style="background:${s.color}"></i>${s.label}</span><b>${fmt(d[s.key])}</b></div>`).join('')}
+    <div class="t-note">${d.sessions} session${d.sessions === 1 ? '' : 's'}, ${fmtFull(d.queries)} messages</div>`, e.clientX, e.clientY);
+});
+dailyCanvas.addEventListener('mouseleave', () => { hoverDay = -1; drawDaily(); hideTip(); });
+dailyCanvas.addEventListener('click', e => {
+  const i = indexAt(e, dailyGeom);
+  if (i < 0) return;
+  hideTip();
+  hoverDay = -1;
+  const date = DATA.dailyUsage[i].date;
+  applyFilters({ from: date, to: date });
+});
 
-  const totalCost = data.reduce((s, d) => s + d.cost, 0) || 1;
-  const totalTokens = data.reduce((s, d) => s + d.totalTokens, 0) || 1;
-  const rows = [...data].sort((a, b) => (b.cost - a.cost) || (b.totalTokens - a.totalTokens));
-  const VISIBLE = 5;
-  const hidden = rows.length - VISIBLE;
-  legend.classList.remove('show-all');
-  legend.innerHTML = rows.map((d, i) => {
-    const unpriced = d.priced === false;
-    const share = unpriced ? d.totalTokens / totalTokens : d.cost / totalCost;
-    const color = modelColor(d.model);
-    return `<div class="model-row${i >= VISIBLE ? ' model-more' : ''}">
-      <div class="model-row-top">
-        <span class="model-badge"><span class="model-dot" style="background:${color}"></span>${escapeHtml(modelShort(d.model))}</span>
-        <span class="model-row-cost${unpriced ? ' unpriced' : ''}">${unpriced ? 'unpriced' : fmtCost(d.cost)}</span>
+// ---------- Models & projects ----------
+function barList(el, rows, { label, color, meta, limit = 6 }) {
+  if (!rows.length) { el.innerHTML = '<div class="empty">No usage in this range.</div>'; return; }
+  const totalCost = rows.reduce((s, r) => s + (r.cost || 0), 0) || 1;
+  const totalTokens = rows.reduce((s, r) => s + r.totalTokens, 0) || 1;
+  const item = (r, i) => {
+    const unpriced = r.priced === false;
+    const share = unpriced ? r.totalTokens / totalTokens : (r.cost || 0) / totalCost;
+    const pct = share * 100;
+    return `<div class="bar-row"${i >= limit ? ' data-more hidden' : ''}>
+      <div class="bar-top">
+        <span class="bar-name">${color(r) ? `<i class="sw" style="background:${color(r)}"></i>` : ""}<span class="label" title="${escapeHtml(label(r))}">${escapeHtml(label(r))}</span></span>
+        <span class="bar-cost${unpriced ? ' unpriced' : ''}">${unpriced ? 'not priced' : `${fmtCost(r.cost)}<span class="pct">${pct < 1 ? '<1' : pct.toFixed(0)}%</span>`}</span>
       </div>
-      <div class="model-row-bar"><span style="width:${Math.max(0.5, share * 100).toFixed(1)}%;background:${color}"></span></div>
-      <div class="model-row-sub">${fmt(d.totalTokens)} tokens, ${fmtFull(d.queryCount)} messages</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(0.6, pct).toFixed(2)}%;background:${color(r) || COL.input}"></div></div>
+      <div class="bar-meta">${meta(r)}</div>
     </div>`;
-  }).join('') + (hidden > 0 ? `<button class="model-toggle" onclick="toggleModelRows(this, ${hidden})">Show ${hidden} more models</button>` : '');
+  };
+  const extra = rows.length - limit;
+  el.innerHTML = rows.map(item).join('') + (extra > 0
+    ? `<div><button class="linkbtn" data-extra="${extra}" onclick="toggleMore(this)">Show ${extra} more</button></div>` : '');
 }
-function toggleModelRows(btn, hidden) {
-  const showAll = document.getElementById('modelLegend').classList.toggle('show-all');
-  btn.textContent = showAll ? 'Show fewer models' : `Show ${hidden} more models`;
+function toggleMore(btn) {
+  const opening = btn.textContent.startsWith('Show ' + btn.dataset.extra);
+  btn.closest('.bars').querySelectorAll('[data-more]').forEach(r => { r.hidden = !opening; });
+  btn.textContent = opening ? 'Show fewer' : `Show ${btn.dataset.extra} more`;
 }
+const byCost = (a, b) => ((b.cost || 0) - (a.cost || 0)) || (b.totalTokens - a.totalTokens);
 
-// Project accordion
-function toggleProjectDrawer(i) {
-  const row = document.getElementById('proj-row-' + i);
-  const drawer = document.getElementById('proj-drawer-' + i);
-  const isOpen = drawer.classList.contains('open');
-  row.classList.toggle('expanded', !isOpen);
-  drawer.classList.toggle('open', !isOpen);
-}
-
-function buildDrawerContent(p) {
-  if (!p.topPrompts || p.topPrompts.length === 0) {
-    return '<div class="drawer-empty">No prompt data available</div>';
-  }
-  const items = p.topPrompts.map((pr, i) => {
-    const toolEntries = Object.entries(pr.toolCounts || {}).sort((a, b) => b[1] - a[1]);
-    const chips = toolEntries.map(([name, count]) =>
-      '<span class="tool-chip">' + count + '\u00d7\u00a0' + escapeHtml(name) + '</span>'
-    ).join('') + (pr.continuations > 0 ? '<span class="tool-chip">+' + pr.continuations + ' turns</span>' : '');
-    const badge = '<span class="model-badge ' + modelClass(pr.model) + '"><span class="model-dot"></span>' + modelShort(pr.model) + '</span>';
-    const tokVal = fmt(pr.totalTokens);
-    const tokSub = fmt(pr.inputTokens) + ' / ' + fmt(pr.outputTokens);
-    const promptText = escapeHtml(pr.prompt);
-    const sid = pr.sessionId;
-    return [
-      '<div class="drawer-prompt-row" onclick="openDrilldown(\'' + sid + '\')">',
-      '<div class="drawer-rank">' + (i + 1) + '</div>',
-      '<div>',
-      '<div class="drawer-prompt-text">' + promptText + '</div>',
-      '<div class="drawer-prompt-meta">' + badge + chips + '</div>',
-      '</div>',
-      '<div class="drawer-tokens"><div class="value">' + tokVal + '</div><div class="sub">' + tokSub + '</div></div>',
-      '</div>',
-    ].join('');
+function renderModels() {
+  barList(document.getElementById('models'), [...(DATA.modelBreakdown || [])].sort(byCost), {
+    label: r => modelShort(r.model),
+    color: r => modelColor(r.model),
+    meta: r => `${fmt(r.totalTokens)} tokens, ${fmtFull(r.queryCount)} messages`,
   });
-  return '<div class="drawer-prompt-list">' + items.join('') + '</div>';
 }
-
-// Project breakdown
-function renderProjectBreakdown() {
-  const projects = DATA.projectBreakdown;
-  if (!projects || !projects.length) return;
-
-  const countEl = document.getElementById('projectsCount');
-  countEl.textContent = projects.length + ' project' + (projects.length === 1 ? '' : 's');
-
-  const maxTokens = projects[0].totalTokens;
-  const chevron = '<svg class="proj-chevron" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6l4 4-4 4"/></svg>';
-  const rows = [];
-  projects.forEach((p, i) => {
-    const barPct = (p.totalTokens / maxTokens * 100).toFixed(1);
-    const ariaLabel = p.modelBreakdown.map(m => modelShort(m.model) + ': ' + fmt(m.inputTokens) + ' input, ' + fmt(m.outputTokens) + ' output').join(', ');
-    const pillItems = p.modelBreakdown.map(m =>
-      '<li><span class="model-badge ' + modelClass(m.model) +
-      '" aria-label="' + modelShort(m.model) + ': ' + fmt(m.inputTokens) + ' input, ' + fmt(m.outputTokens) + ' output">' +
-      '<span class="model-dot" aria-hidden="true"></span>' +
-      modelShort(m.model) +
-      ' <span class="token-detail"><span aria-hidden="true">\u2193</span><span class="sr-only">in </span>' + fmt(m.inputTokens) + '</span>' +
-      ' <span class="token-detail"><span aria-hidden="true">\u2191</span><span class="sr-only">out </span>' + fmt(m.outputTokens) + '</span>' +
-      '</span></li>'
-    ).join('');
-    const summaryRow = [
-      '<tr class="proj-row" id="proj-row-' + i + '" onclick="toggleProjectDrawer(' + i + ')">',
-      '<td style="padding:10px 16px">',
-      '<div style="display:flex;align-items:center;gap:6px">',
-      chevron,
-      '<div>',
-      '<div class="proj-name" title="' + projectFull(p.project) + '">' + escapeHtml(projectShort(p.project)) + '</div>',
-      '<ul class="model-pills" aria-label="Models used: ' + ariaLabel + '">' + pillItems + '</ul>',
-      '</div></div></td>',
-      '<td class="token-num" style="font-weight:700;vertical-align:top;padding-top:12px">',
-      '<div style="display:flex;align-items:center;gap:8px;justify-content:flex-end">',
-      '<div style="flex:1;max-width:60px;height:3px;background:var(--bg);border-radius:4px;overflow:hidden">',
-      '<div style="width:' + barPct + '%;height:100%;background:var(--indigo);border-radius:4px"></div>',
-      '</div><div><div>' + fmt(p.totalTokens) + '</div><div style="font-size:11px;font-weight:500;color:var(--text-tertiary);margin-top:1px">' + fmt(p.inputTokens) + ' in\u00a0\u00b7\u00a0' + fmt(p.outputTokens) + ' out</div></div></div></td>',
-      '<td class="token-num" style="vertical-align:top;padding-top:12px">' + p.sessionCount + '</td>',
-      '<td class="token-num" style="vertical-align:top;padding-top:12px">' + p.queryCount + '</td>',
-      '</tr>',
-    ].join('');
-    const drawerRow = [
-      '<tr class="proj-drawer" id="proj-drawer-' + i + '">',
-      '<td colspan="4"><div class="proj-drawer-inner"><div class="proj-drawer-content">',
-      buildDrawerContent(p),
-      '</div></div></td></tr>',
-    ].join('');
-    rows.push(summaryRow, drawerRow);
+function renderProjects() {
+  barList(document.getElementById('projects'), [...(DATA.projectBreakdown || [])].sort(byCost), {
+    label: r => projectShort(r.project),
+    color: () => null,
+    meta: r => `${fmtFull(r.sessionCount)} session${r.sessionCount === 1 ? '' : 's'}, ${fmt(r.totalTokens)} tokens`,
   });
-  document.getElementById('projectsBody').innerHTML = rows.join('');
 }
 
-// Top prompts
-function renderTopPrompts() {
-  const prompts = DATA.topPrompts;
-  if (!prompts.length) {
-    document.getElementById('topPromptsList').innerHTML = '<div class="model-empty" style="padding:16px 18px">No prompts in this range. Pick a wider date range above.</div>';
-    return;
-  }
-  const maxTokens = Math.max(...prompts.map(p => p.totalTokens)) || 1;
+// ---------- Insights ----------
+function renderInsights() {
+  const list = DATA.insights || [];
+  document.getElementById('insightsPanel').hidden = !list.length;
+  document.getElementById('insights').innerHTML = list.map(ins => `
+    <details class="insight ${escapeHtml(ins.type)}">
+      <summary><span class="dot"></span>${escapeHtml(ins.title)}</summary>
+      <div class="insight-body">
+        ${ins.description ? `<p>${escapeHtml(ins.description)}</p>` : ''}
+        ${ins.action ? `<p class="action">${escapeHtml(ins.action)}</p>` : ''}
+      </div>
+    </details>`).join('');
+}
 
-  document.getElementById('topPromptsList').innerHTML = prompts.map((p, i) => {
-    const cached = p.cacheReadTokens || 0;
-    const written = p.cacheCreationTokens || 0;
-    const total = p.inputTokens + written + cached + p.outputTokens;
-    const pct = n => total > 0 ? (n / total) * 100 : 0;
-    return `<div class="prompt-row" tabindex="0" onclick="openDrilldown('${p.sessionId}', '${escapeHtml(p.account)}')" onkeydown="if(event.key==='Enter')this.click()">
-      <div class="prompt-rank">${i + 1}</div>
+// ---------- Prompts ----------
+function renderPrompts() {
+  const el = document.getElementById('prompts');
+  const list = DATA.topPrompts || [];
+  if (!list.length) { el.innerHTML = '<li class="empty">No prompts in this range.</li>'; return; }
+  el.innerHTML = list.map((p, i) => {
+    return `<li class="prompt" tabindex="0" data-session="${escapeHtml(p.sessionId)}" data-account="${escapeHtml(p.account)}">
+      <span class="prompt-rank">${i + 1}</span>
       <div>
         <div class="prompt-text">${escapeHtml(p.prompt)}</div>
-        <div class="prompt-meta"><span>${formatDate(p.date)}</span><span>${escapeHtml(modelShort(p.model))}</span>${multiAccount() ? `<span class="account-tag">${escapeHtml(p.account)}</span>` : ''}</div>
-        <div class="token-bar-wrap" style="width:${Math.max(10, (p.totalTokens / maxTokens) * 100)}%" title="Input, cache writes, cache reads, output">
-          <div class="token-bar-in" style="width:${pct(p.inputTokens)}%"></div>
-          <div class="token-bar-write" style="width:${pct(written)}%"></div>
-          <div class="token-bar-cache" style="width:${pct(cached)}%"></div>
-          <div class="token-bar-out" style="width:${pct(p.outputTokens)}%"></div>
-        </div>
+        <div class="prompt-meta"><span>${formatDate(p.date)}</span><span class="model"><i class="sw" style="background:${modelColor(p.model)}"></i>${escapeHtml(modelShort(p.model))}</span>${accountChip(p.account)}</div>
       </div>
-      <div class="prompt-tokens">
-        <div class="cost">${fmtCost(p.cost)}</div>
-        <div class="value">${fmt(p.totalTokens)} tokens</div>
-        <div class="sub">${fmt(cached)} cached, ${fmt(p.outputTokens)} out</div>
+      <div class="prompt-right">
+        <div class="prompt-cost">${fmtCost(p.cost)}</div>
+        <div class="prompt-tokens">${fmt(p.totalTokens)} tokens</div>
       </div>
-    </div>`;
+    </li>`;
   }).join('');
 }
 
-// Sessions
+// ---------- Sessions ----------
+const SORTS = {
+  date: (a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''),
+  prompt: (a, b) => a.firstPrompt.localeCompare(b.firstPrompt),
+  model: (a, b) => a.model.localeCompare(b.model),
+  queries: (a, b) => a.queryCount - b.queryCount,
+  total: (a, b) => a.totalTokens - b.totalTokens,
+  cost: (a, b) => a.cost - b.cost,
+};
 function renderSessions() {
-  let sessions = [...DATA.sessions];
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    sessions = sessions.filter(s =>
-      s.firstPrompt.toLowerCase().includes(q) ||
-      s.model.toLowerCase().includes(q) ||
-      projectShort(s.project).toLowerCase().includes(q) ||
-      (s.account || '').toLowerCase().includes(q)
-    );
+  let rows = [...DATA.sessions];
+  if (search) {
+    const q = search.toLowerCase();
+    rows = rows.filter(s => [s.firstPrompt, s.model, modelShort(s.model), projectShort(s.project), s.account].some(v => (v || '').toLowerCase().includes(q)));
   }
+  const fn = SORTS[sort.key];
+  rows.sort((a, b) => sort.dir === 'desc' ? fn(b, a) : fn(a, b));
 
-  const sortFns = {
-    date: (a, b) => (a.timestamp || '').localeCompare(b.timestamp || ''),
-    prompt: (a, b) => a.firstPrompt.localeCompare(b.firstPrompt),
-    model: (a, b) => a.model.localeCompare(b.model),
-    queries: (a, b) => a.queryCount - b.queryCount,
-    total: (a, b) => a.totalTokens - b.totalTokens,
-    input: (a, b) => a.inputTokens - b.inputTokens,
-    output: (a, b) => a.outputTokens - b.outputTokens,
-    cost: (a, b) => a.cost - b.cost,
-  };
-  const fn = sortFns[currentSort.key] || sortFns.total;
-  sessions.sort((a, b) => currentSort.dir === 'desc' ? fn(b, a) : fn(a, b));
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    if (th.dataset.sort === sort.key) th.setAttribute('aria-sort', sort.dir === 'desc' ? 'descending' : 'ascending');
+    else th.removeAttribute('aria-sort');
+  });
 
-  document.getElementById('sessionCount').textContent = `${sessions.length} sessions`;
-
-  document.getElementById('sessionsBody').innerHTML = sessions.map(s => `
-    <tr onclick="openDrilldown('${s.sessionId}', '${escapeHtml(s.account)}')">
-      <td class="date-cell">
-        ${formatDate(s.date)}${multiAccount() ? `<span class="account-tag">${escapeHtml(s.account)}</span>` : ''}
-        <span class="project-tag" title="${escapeHtml(projectShort(s.project))}">${escapeHtml(projectShort(s.project))}</span>
+  const shown = rows.slice(0, sessionLimit);
+  document.getElementById('sessionsBody').innerHTML = shown.length ? shown.map(s => `
+    <tr tabindex="0" data-session="${escapeHtml(s.sessionId)}" data-account="${escapeHtml(s.account)}">
+      <td class="s-date">${formatDate(s.date)}</td>
+      <td>
+        <div class="s-prompt" title="${escapeHtml(s.firstPrompt)}">${escapeHtml(s.firstPrompt)}</div>
+        <div class="s-project">${escapeHtml(projectShort(s.project))}${accountChip(s.account)}</div>
       </td>
-      <td><div class="prompt-preview" title="${escapeHtml(s.firstPrompt)}">${escapeHtml(s.firstPrompt)}</div></td>
-      <td><span class="model-badge ${modelClass(s.model)}"><span class="model-dot"></span>${escapeHtml(modelShort(s.model))}</span></td>
-      <td class="token-num">${s.queryCount}</td>
-      <td class="token-num" style="font-weight:700">${fmt(s.totalTokens)}</td>
-      <td class="token-num">${fmt(s.inputTokens)}</td>
-      <td class="token-num">${fmt(s.outputTokens)}</td>
-      <td class="token-num">${fmtCost(s.cost)}</td>
-    </tr>
-  `).join('');
+      <td><span class="model"><i class="sw" style="background:${modelColor(s.model)}"></i>${escapeHtml(modelShort(s.model))}</span></td>
+      <td class="r">${fmtFull(s.queryCount)}</td>
+      <td class="r">${fmt(s.totalTokens)}</td>
+      <td class="r cost">${fmtCost(s.cost)}</td>
+    </tr>`).join('') : `<tr><td colspan="6" class="empty" style="padding:16px 20px">${search ? 'No sessions match that search.' : 'No sessions in this range.'}</td></tr>`;
+
+  document.getElementById('sessionSub').textContent = `${fmtFull(DATA.sessions.length)} in this range. Click one to see each turn.`;
+  document.getElementById('sessionCount').textContent = rows.length ? `Showing ${shown.length} of ${fmtFull(rows.length)}` : '';
+  const more = document.getElementById('moreSessions');
+  more.hidden = shown.length >= rows.length;
+  more.textContent = `Show ${Math.min(25, rows.length - shown.length)} more`;
 }
 
-// Sort
-document.querySelectorAll('.sessions-table th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const key = th.dataset.sort;
-    if (currentSort.key === key) { currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc'; }
-    else { currentSort = { key, dir: 'desc' }; }
-    document.querySelectorAll('.sessions-table th').forEach(t => t.classList.remove('sorted'));
-    th.classList.add('sorted');
+document.querySelectorAll('th[data-sort] button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.parentElement.dataset.sort;
+    sort = sort.key === key
+      ? { key, dir: sort.dir === 'desc' ? 'asc' : 'desc' }
+      : { key, dir: key === 'prompt' || key === 'model' ? 'asc' : 'desc' };
     renderSessions();
   });
 });
+document.getElementById('search').addEventListener('input', e => { search = e.target.value; sessionLimit = 25; renderSessions(); });
+document.getElementById('moreSessions').addEventListener('click', () => { sessionLimit += 25; renderSessions(); });
 
-document.getElementById('searchInput').addEventListener('input', e => {
-  searchQuery = e.target.value;
-  renderSessions();
-});
-
-// Group session queries by user prompt (shared logic)
-function groupSessionQueries(queries) {
-  const grouped = [];
-  let current = null;
-  for (const q of queries) {
-    if (q.userPrompt) {
-      if (current) grouped.push(current);
-      current = {
-        prompt: q.userPrompt,
-        inputTokens: q.inputTokens,
-        outputTokens: q.outputTokens,
-        cacheCreationTokens: q.cacheCreationTokens || 0,
-        cacheReadTokens: q.cacheReadTokens || 0,
-        totalTokens: q.totalTokens,
-        cost: q.cost || 0,
-        continuations: 0,
-      };
-    } else if (current) {
-      current.inputTokens += q.inputTokens;
-      current.outputTokens += q.outputTokens;
-      current.cacheCreationTokens += (q.cacheCreationTokens || 0);
-      current.cacheReadTokens += (q.cacheReadTokens || 0);
-      current.totalTokens += q.totalTokens;
-      current.cost += (q.cost || 0);
-      current.continuations++;
-    }
-  }
-  if (current) grouped.push(current);
-  return grouped;
+// Open a session from the prompts list or the table (click or Enter)
+for (const id of ['prompts', 'sessionsBody']) {
+  const el = document.getElementById(id);
+  const target = e => e.target.closest('[data-session]');
+  el.addEventListener('click', e => { const t = target(e); if (t) openSession(t.dataset.session, t.dataset.account); });
+  el.addEventListener('keydown', e => { const t = target(e); if (t && e.key === 'Enter') openSession(t.dataset.session, t.dataset.account); });
 }
 
-// Per-turn cost area chart
-function renderTurnCostChart(grouped) {
-  const wrap = document.getElementById('turnChartWrap');
-  if (grouped.length < 6) { wrap.style.display = 'none'; return; }
-  wrap.style.display = 'block';
+// ---------- Session drawer ----------
+let drawerRequest = 0;
+let lastFocus = null;
+let turnGeom = null;
+let turnGroups = [];
+let hoverTurn = -1;
 
-  const canvas = document.getElementById('turnCostChart');
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  // Force reflow so clientWidth is accurate after display change
-  wrap.offsetHeight;
-  const w = canvas.parentElement.clientWidth || wrap.clientWidth || 600;
-  const h = 140;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-  ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, w, h);
+async function openSession(sessionId, account) {
+  const s = DATA.sessions.find(x => x.sessionId === sessionId && (!account || x.account === account));
+  if (!s) return;
+  const req = ++drawerRequest;
+  if (!document.body.classList.contains('drawer-open')) lastFocus = document.activeElement;
 
-  const costs = grouped.map(g => g.cost);
-  const maxCost = Math.max(...costs);
-  if (maxCost <= 0) { wrap.style.display = 'none'; return; }
+  document.getElementById('drawerTitle').textContent = s.firstPrompt;
+  document.getElementById('drawerMeta').innerHTML = [
+    `<span>${formatDate(s.date, true)}</span>`,
+    `<span class="model"><i class="sw" style="background:${modelColor(s.model)}"></i>${escapeHtml(modelShort(s.model))}</span>`,
+    `<span>${escapeHtml(projectShort(s.project))}</span>`,
+    multiAccount() ? `<span class="chip">${escapeHtml(s.account)}</span>` : '',
+  ].join('');
+  const body = document.getElementById('drawerBody');
+  body.innerHTML = '<div class="empty">Loading turns…</div>';
+  document.getElementById('drawer').scrollTop = 0;
+  document.body.classList.add('drawer-open');
+  document.getElementById('drawer').setAttribute('aria-hidden', 'false');
+  document.getElementById('drawerClose').focus({ preventScroll: true });
 
-  const padL = 52, padR = 16, padT = 12, padB = 28;
-  const chartW = w - padL - padR;
-  const chartH = h - padT - padB;
-
-  // Grid lines
-  ctx.font = `500 11px ${CHART_FONT}`;
-  ctx.fillStyle = INK.ink3;
-  ctx.textAlign = 'right';
-  for (let i = 0; i <= 3; i++) {
-    const val = (maxCost / 3) * i;
-    const y = padT + chartH - (chartH * i / 3);
-    ctx.fillText(fmtCost(val), padL - 8, y + 3);
-    ctx.strokeStyle = i === 0 ? INK.ruleStrong : INK.rule; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
-  }
-
-  const stepX = grouped.length > 1 ? chartW / (grouped.length - 1) : chartW;
-
-  // Find the most expensive turn — that's where /clear would have helped most.
-  // The line says "a /clear before this turn would have reduced its cost."
-  let inflectionIdx = -1;
-  if (grouped.length >= 6) {
-    const sorted = costs.map((c, i) => ({ c, i })).sort((a, b) => b.c - a.c);
-    const topIdx = sorted[0].i;
-    // Only show if the top turn is at least 3x the median cost (i.e. it's actually a spike)
-    const sortedCosts = [...costs].sort((a, b) => a - b);
-    const median = sortedCosts[Math.floor(sortedCosts.length / 2)];
-    if (topIdx > 0 && sorted[0].c > median * 3 && sorted[0].c > 0.01) {
-      inflectionIdx = topIdx;
-    }
-  }
-
-  // Area gradient fill
-  const gradient = 'rgba(178,58,46,0.08)';
-
-  ctx.beginPath();
-  costs.forEach((c, i) => {
-    const x = padL + i * stepX;
-    const y = padT + chartH - (c / maxCost) * chartH;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.lineTo(padL + (costs.length - 1) * stepX, padT + chartH);
-  ctx.lineTo(padL, padT + chartH);
-  ctx.closePath();
-  ctx.fillStyle = gradient;
-  ctx.fill();
-
-  // Line
-  const lineGrad = INK.red;
-  ctx.beginPath();
-  costs.forEach((c, i) => {
-    const x = padL + i * stepX;
-    const y = padT + chartH - (c / maxCost) * chartH;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.strokeStyle = lineGrad;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Dots
-  costs.forEach((c, i) => {
-    const x = padL + i * stepX;
-    const y = padT + chartH - (c / maxCost) * chartH;
-    const t = costs.length > 1 ? i / (costs.length - 1) : 0;
-    ctx.beginPath();
-    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = INK.red;
-    ctx.fill();
-  });
-
-  // Inflection line
-  if (inflectionIdx > 0) {
-    const ix = padL + inflectionIdx * stepX;
-    ctx.setLineDash([4, 4]);
-    ctx.strokeStyle = INK.ink;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(ix, padT);
-    ctx.lineTo(ix, padT + chartH);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = INK.ink;
-    ctx.font = `600 11px ${CHART_FONT}`;
-    // Position label: keep it inside chart bounds
-    const labelText = '$' + costs[inflectionIdx].toFixed(2) + ', the most expensive turn';
-    const labelWidth = ctx.measureText(labelText).width;
-    if (ix + labelWidth / 2 > w - padR) {
-      ctx.textAlign = 'right';
-      ctx.fillText(labelText, ix - 6, padT - 2);
-    } else {
-      ctx.textAlign = 'left';
-      ctx.fillText(labelText, ix + 6, padT - 2);
-    }
-  }
-
-  // X labels
-  ctx.fillStyle = INK.ink3;
-  ctx.font = `500 11px ${CHART_FONT}`;
-  ctx.textAlign = 'center';
-  const labelStep = Math.max(1, Math.floor(grouped.length / 8));
-  costs.forEach((_, i) => {
-    if (i % labelStep === 0 || i === costs.length - 1) {
-      const x = padL + i * stepX;
-      ctx.fillText(i + 1, x, padT + chartH + 16);
-    }
-  });
-
-}
-
-// Session insight/recommendation
-function renderDrilldownInsight(grouped, session) {
-  const insightBox = document.getElementById('turnChartInsight');
-  const insightTitle = document.getElementById('turnChartInsightTitle');
-  const insightBody = document.getElementById('turnChartInsightBody');
-
-  const costs = grouped.map(g => g.cost);
-  const totalCost = costs.reduce((a, b) => a + b, 0);
-  const avgCost = costs.length > 0 ? totalCost / costs.length : 0;
-  const maxTurnCost = Math.max(...costs);
-  const maxTurnIdx = costs.indexOf(maxTurnCost);
-  const model = modelShort(session.model);
-  const isOpus = model.toLowerCase().includes('opus');
-
-  // Find the most expensive turn (same as chart)
-  const sortedCosts = [...costs].sort((a, b) => a - b);
-  const median = sortedCosts[Math.floor(sortedCosts.length / 2)];
-  const topTurnIdx = costs.indexOf(maxTurnCost);
-  const hasSpike = topTurnIdx > 0 && maxTurnCost > median * 3 && maxTurnCost > 0.01;
-
-  let title = '', body = '', bg = '', border = '', color = '';
-
-  if (hasSpike) {
-    // Has an expensive spike - explain it and recommend /clear
-    const spikeCost = maxTurnCost;
-    title = `Turn ${topTurnIdx + 1} cost ${fmtCost(spikeCost)}, ${median > 0 ? (spikeCost / median).toFixed(0) + 'x' : 'far'} more than a typical turn`;
-    body = `A typical turn cost ${fmtCost(median)}. The spike at turn ${topTurnIdx + 1} happened because the context had grown large by that point. Running /clear before expensive turns resets the context and brings costs back down. Tip: if you notice Claude slowing down or you are switching to a different task, that is a good time to /clear.`;
-    bg = '#FCF7F5';
-    border = INK.red;
-    color = INK.red;
-  } else if (costs.length > 50) {
-    // Long conversation, no big spike
-    const lastQuarter = costs.slice(Math.floor(costs.length * 0.75));
-    const lastQuarterAvg = lastQuarter.reduce((a, b) => a + b, 0) / lastQuarter.length;
-    title = `${costs.length} turns is a long conversation`;
-    body = `Caching kept costs steady (avg ~$${avgCost.toFixed(4)}/turn), but the context window still grew large. Late turns averaged ~$${lastQuarterAvg.toFixed(4)}. Consider splitting into smaller conversations for better focus and lower risk of hitting context limits.`;
-    bg = INK.sheet;
-    border = INK.blue;
-    color = INK.blue;
-  } else if (costs.length >= 3) {
-    // Normal/healthy
-    const totalTokens = session.totalTokens;
-    const cacheRate = session.queries ? Math.round(session.queries.reduce((s, q) => s + (q.cacheReadTokens || 0), 0) / Math.max(1, totalTokens) * 100) : 0;
-    title = `This conversation was efficient`;
-    body = `${costs.length} turns, avg ~$${avgCost.toFixed(4)}/turn, total ~$${totalCost.toFixed(2)} API-equivalent. ${cacheRate > 50 ? `Cache hit rate: ${cacheRate}% (good).` : cacheRate > 0 ? `Cache hit rate: ${cacheRate}%.` : ''} No issues detected.`;
-    bg = INK.sheet;
-    border = INK.green;
-    color = INK.green;
-  } else {
-    insightBox.style.display = 'none';
-    return;
-  }
-
-  insightTitle.textContent = title;
-  insightBody.textContent = body;
-  insightBox.style.background = bg;
-  insightBox.style.borderLeft = `3px solid ${border}`;
-  insightTitle.style.color = color;
-  insightBox.style.display = 'block';
-}
-
-// Show account tags only when sessions from several accounts are on screen
-function multiAccount() {
-  return FILTERS.account === 'all' && ((DATA.filters && DATA.filters.accounts) || []).length > 1;
-}
-
-// Drill-down (per-turn rows are loaded on demand)
-let drilldownRequest = 0;
-async function openDrilldown(sessionId, account) {
-  const session = DATA.sessions.find(s => s.sessionId === sessionId && (!account || s.account === account));
-  if (!session) return;
-
-  const requestId = ++drilldownRequest;
-  if (!session.queries) {
+  if (!s.queries) {
     const p = new URLSearchParams(filterQuery());
     p.set('id', sessionId);
-    p.set('account', session.account);
+    p.set('account', s.account);
     try {
-      const res = await fetch('/api/session?' + p.toString());
-      if (!res.ok) return;
-      session.queries = (await res.json()).queries;
-    } catch {
+      const res = await fetch('/api/session?' + p);
+      if (!res.ok) throw new Error(`server returned ${res.status}`);
+      s.queries = (await res.json()).queries;
+    } catch (err) {
+      if (req === drawerRequest) body.innerHTML = `<div class="empty">Couldn't load this session: ${escapeHtml(err.message)}. Try Refresh.</div>`;
       return;
     }
-    if (requestId !== drilldownRequest) return; // another session was opened meanwhile
   }
-
-  document.getElementById('drilldownTitle').textContent = session.firstPrompt.substring(0, 140);
-  document.getElementById('drilldownMeta').textContent =
-    `${formatDate(session.date)}, ${modelShort(session.model)}, ${session.queryCount} messages, ${fmt(session.totalTokens)} tokens, ${fmtCost(session.cost)}` +
-    (session.subagentCost > 0 ? ` (${fmtCost(session.subagentCost)} subagents)` : '') +
-    (multiAccount() ? `, ${session.account} account` : '');
-
-  const grouped = groupSessionQueries(session.queries);
-
-  // Open first so the chart can measure the panel's real width
-  const panel = document.getElementById('drilldown');
-  panel.classList.add('open');
-
-  // Reset chart canvas before rendering
-  const turnCanvas = document.getElementById('turnCostChart');
-  turnCanvas.width = 0; turnCanvas.height = 0;
-  turnCanvas.style.width = '0'; turnCanvas.style.height = '0';
-  // Render per-turn cost chart
-  renderTurnCostChart(grouped);
-
-  // Session recommendation (always shown)
-  renderDrilldownInsight(grouped, session);
-
-  document.getElementById('queryList').innerHTML = grouped.map((q, i) => {
-    const cont = q.continuations > 0 ? `, ${q.continuations} tool calls` : '';
-    const cached = q.cacheReadTokens || 0;
-    return `<div class="query-item">
-      <div class="query-num">${i + 1}</div>
-      <div class="query-prompt">${escapeHtml(q.prompt.substring(0, 500))}</div>
-      <div class="query-tokens-col">
-        <div class="total">${fmtCost(q.cost)}</div>
-        <div class="detail">${fmt(q.totalTokens)} tokens${cont}</div>
-        <div class="detail">${fmt(cached)} cached, ${fmt(q.outputTokens)} out</div>
-      </div>
-    </div>`;
-  }).join('');
-
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (req !== drawerRequest) return;
+  renderDrawer(s);
 }
 
-function closeDrilldown() {
-  document.getElementById('drilldown').classList.remove('open');
-}
-
-// Share Stats Card
-function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-  const words = text.split(' ');
-  let line = '';
-  let lines = 0;
-  for (const word of words) {
-    const test = line + (line ? ' ' : '') + word;
-    if (ctx.measureText(test).width > maxWidth && line) {
-      ctx.fillText(line, x, y);
-      line = word;
-      y += lineHeight;
-      lines++;
-      if (lines >= 2) { ctx.fillText(line + '...', x, y); return; }
+function groupTurns(queries) {
+  const groups = [];
+  let cur = null;
+  for (const q of queries) {
+    if (q.userPrompt || !cur) {
+      cur = { prompt: q.userPrompt || null, cost: 0, tokens: 0, calls: 0, subagent: 0 };
+      groups.push(cur);
     } else {
-      line = test;
+      cur.calls++;
     }
+    cur.cost += q.cost || 0;
+    cur.tokens += q.totalTokens;
+    if (q.isSubagent) cur.subagent += q.cost || 0;
   }
-  if (line) ctx.fillText(line, x, y);
+  return groups;
 }
 
-async function generateShareCard() {
-  if (!DATA) return;
-  const t = DATA.totals;
+function renderDrawer(s) {
+  turnGroups = groupTurns(s.queries);
+  hoverTurn = -1;
+  const costs = turnGroups.map(g => g.cost);
+  const sorted = [...costs].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] || 0;
+  const maxCost = Math.max(...costs, 0);
+  const top = costs.indexOf(maxCost);
 
-  await document.fonts.ready;
+  let callout = '';
+  if (turnGroups.length >= 4 && maxCost > 0.01 && maxCost > median * 3) {
+    callout = `<div class="callout warn"><b>Turn ${top + 1} cost ${fmtCost(maxCost)}, ${median > 0 ? Math.round(maxCost / median) + 'x' : 'far above'} a typical turn (${fmtCost(median)})</b>
+      Spikes like this usually come from a large context or a long tool or subagent run. Running <code>/clear</code> before starting a new task keeps later turns cheap.</div>`;
+  } else if (turnGroups.length > 50) {
+    callout = `<div class="callout info"><b>${turnGroups.length} turns is a long conversation</b>Costs stayed fairly even, but every turn re-reads the growing history. Splitting work across sessions keeps it short.</div>`;
+  } else if (turnGroups.length >= 3) {
+    callout = `<div class="callout ok"><b>No cost spikes in this session</b>A typical turn cost ${fmtCost(median)}.</div>`;
+  }
 
-  const canvas = document.getElementById('shareCanvas');
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="mini-kpis">
+      <div><span>Cost</span><b class="gold">${fmtCost(s.cost)}</b></div>
+      <div><span>Tokens</span><b>${fmt(s.totalTokens)}</b></div>
+      <div><span>Turns</span><b>${fmtFull(turnGroups.length)}</b></div>
+      <div><span>Subagents</span><b>${fmtCost(s.subagentCost || 0)}</b></div>
+    </div>
+    ${turnGroups.length > 1 ? `<div>
+      <div class="section-label">Cost per turn <small>Click a bar to jump to that turn</small></div>
+      <div class="chart-wrap"><canvas id="turnChart"></canvas></div>
+    </div>` : ''}
+    ${callout}
+    <div>
+      <div class="section-label">Turns <small>${fmtFull(s.queryCount)} responses in total</small></div>
+      <ol class="turns">${turnGroups.map((g, i) => `
+        <li class="turn" id="turn-${i}">
+          <span class="turn-num">${i + 1}</span>
+          <div class="turn-text${g.prompt ? '' : ' none'}">${g.prompt ? escapeHtml(g.prompt.slice(0, 600)) : 'Continued from before this date range'}</div>
+          <div class="turn-right"><b>${fmtCost(g.cost)}</b>${fmt(g.tokens)} tokens${g.calls ? `<br>${g.calls} tool call${g.calls === 1 ? '' : 's'}` : ''}${g.subagent > 0 ? `<br>${fmtCost(g.subagent)} in subagents` : ''}</div>
+        </li>`).join('')}</ol>
+    </div>`;
+  drawTurns();
+}
+
+function drawTurns() {
+  const canvas = document.getElementById('turnChart');
+  if (!canvas || !document.body.classList.contains('drawer-open')) return;
   const ctx = canvas.getContext('2d');
-  const W = 1200, H = 630;
-  canvas.width = W; canvas.height = H;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth, h = 150;
+  canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const costs = turnGroups.map(g => g.cost);
+  const max = niceMax(Math.max(...costs) || 0.01);
+  const left = 48, right = 12, top = 6, bottom = 20, plotW = w - left - right, plotH = h - top - bottom;
+  const slot = plotW / costs.length;
+  const gap = slot > 6 ? Math.min(3, slot * 0.25) : 0;
+  turnGeom = { left, slot, n: costs.length };
 
-  // Background gradient
-  const bg = ctx.createLinearGradient(0, 0, W, H);
-  bg.addColorStop(0, '#0F172A');
-  bg.addColorStop(1, '#1E293B');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
-  // Subtle grid pattern
-  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-  ctx.lineWidth = 1;
-  for (let x = 0; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-
-  // Accent glow
-  const glow = ctx.createRadialGradient(200, 100, 0, 200, 100, 400);
-  glow.addColorStop(0, 'rgba(99,102,241,0.15)');
-  glow.addColorStop(1, 'transparent');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-
-  // Title
-  ctx.fillStyle = '#F8FAFC';
-  ctx.font = '800 42px "Schibsted Grotesk", system-ui';
-  ctx.fillText('My Claude Code Stats', 60, 80);
-
-  // Date range
-  if (t.dateRange) {
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = '500 18px "Schibsted Grotesk", system-ui';
-    ctx.fillText(`${t.dateRange.from} to ${t.dateRange.to}`, 60, 116);
+  ctx.font = `400 11px ${FONT}`; ctx.fillStyle = COL.dim; ctx.textAlign = 'right';
+  for (let i = 0; i <= 2; i++) {
+    const y = Math.round(top + plotH - (plotH * i) / 2) + 0.5;
+    ctx.strokeStyle = i === 0 ? COL.line : COL.lineSoft;
+    ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(w - right, y); ctx.stroke();
+    ctx.fillText(axisCost((max * i) / 2), left - 6, y + 4);
   }
-
-  // Top insight in amber
-  const insights = DATA.insights || [];
-  if (insights.length > 0) {
-    ctx.fillStyle = '#F59E0B';
-    ctx.font = '600 20px "Schibsted Grotesk", system-ui';
-    wrapText(ctx, insights[0].title, 60, 160, W - 120, 28);
-  }
-
-  // 2x2 Stats grid
-  const stats = [
-    { label: 'Total Tokens', value: fmt(t.totalTokens) },
-    { label: 'Conversations', value: fmtFull(t.totalSessions) },
-    { label: 'Cache Hit Rate', value: ((t.cacheHitRate || 0) * 100).toFixed(0) + '%' },
-    { label: 'Est. API Cost', value: '$' + (t.totalCost || 0).toFixed(2) },
-  ];
-
-  const gridY = 230;
-  const cellW = (W - 120 - 40) / 2;
-  const cellH = 160;
-
-  stats.forEach((s, i) => {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const x = 60 + col * (cellW + 40);
-    const y = gridY + row * (cellH + 20);
-
-    // Card background
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.beginPath();
-    roundedRect(ctx, x, y, cellW, cellH, 16);
-    ctx.fill();
-
-    // Border
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    roundedRect(ctx, x, y, cellW, cellH, 16);
-    ctx.stroke();
-
-    // Label
-    ctx.fillStyle = '#94A3B8';
-    ctx.font = '600 14px "Schibsted Grotesk", system-ui';
-    ctx.fillText(s.label.toUpperCase(), x + 24, y + 36);
-
-    // Value
-    ctx.fillStyle = '#F8FAFC';
-    ctx.font = '800 48px "Schibsted Grotesk", system-ui';
-    ctx.fillText(s.value, x + 24, y + 100);
+  costs.forEach((c, i) => {
+    const bh = Math.max(c > 0 ? 1 : 0, (c / max) * plotH);
+    ctx.globalAlpha = hoverTurn >= 0 && hoverTurn !== i ? 0.45 : 1;
+    ctx.fillStyle = COL.gold;
+    roundTop(ctx, left + i * slot + gap / 2, top + plotH - bh, Math.max(1, slot - gap), bh, Math.min(2, slot / 2));
   });
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center'; ctx.fillStyle = COL.dim;
+  const step = Math.max(1, Math.ceil(costs.length / Math.max(1, Math.floor(plotW / 44))));
+  for (let i = 0; i < costs.length; i += step) ctx.fillText(i + 1, left + i * slot + slot / 2, h - 4);
+}
 
-  // Branding footer
-  const footerY = H - 50;
-  ctx.fillStyle = '#64748B';
-  ctx.font = '500 16px "Schibsted Grotesk", system-ui';
-  ctx.fillText('claudespend.live', 60, footerY);
+const drawerBody = document.getElementById('drawerBody');
+drawerBody.addEventListener('mousemove', e => {
+  if (e.target.id !== 'turnChart') return;
+  const i = indexAt(e, turnGeom);
+  if (i !== hoverTurn) { hoverTurn = i; drawTurns(); }
+  if (i < 0) return hideTip();
+  const g = turnGroups[i];
+  showTip(`<div class="t-title">Turn ${i + 1}</div>
+    <div class="t-row"><span>Cost</span><b class="t-gold">${fmtCost(g.cost)}</b></div>
+    <div class="t-row"><span>Tokens</span><b>${fmt(g.tokens)}</b></div>
+    ${g.prompt ? `<div class="t-note">${escapeHtml(g.prompt.slice(0, 120))}${g.prompt.length > 120 ? '…' : ''}</div>` : ''}`, e.clientX, e.clientY);
+});
+drawerBody.addEventListener('mouseout', e => { if (e.target.id === 'turnChart') { hoverTurn = -1; drawTurns(); hideTip(); } });
+drawerBody.addEventListener('click', e => {
+  if (e.target.id !== 'turnChart') return;
+  const el = document.getElementById('turn-' + indexAt(e, turnGeom));
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+});
 
-  ctx.fillStyle = '#475569';
-  ctx.font = '500 14px "Schibsted Grotesk", system-ui';
-  ctx.textAlign = 'right';
-  ctx.fillText('npx claude-spend', W - 60, footerY);
+function closeDrawer() {
+  if (!document.body.classList.contains('drawer-open')) return;
+  drawerRequest++;
+  document.body.classList.remove('drawer-open');
+  document.getElementById('drawer').setAttribute('aria-hidden', 'true');
+  hideTip();
+  if (lastFocus && document.contains(lastFocus)) lastFocus.focus({ preventScroll: true });
+}
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+document.getElementById('scrim').addEventListener('click', closeDrawer);
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!document.getElementById('shareModal').hidden) return closeShare();
+  closeDrawer();
+});
+
+// ---------- Footer ----------
+function renderFooter() {
+  const sources = (DATA.filters?.sources || []).map(s => `${escapeHtml(s.label)} (${escapeHtml(s.dir)})`).join(', ');
+  document.getElementById('footer').innerHTML = `
+    Reads ${sources || 'your Claude Code data'} on this machine and sends nothing anywhere.
+    Costs are Anthropic API list-price equivalents (${escapeHtml(DATA.filters?.pricingSource || '')}), not what your plan bills.<br>
+    Originally by <a href="https://www.linkedin.com/in/writetoaniketparihar/" target="_blank" rel="noopener">Aniket Parihar</a>.
+    Maintained fork: <a href="https://github.com/myselfshravan/claude-spend" target="_blank" rel="noopener">myselfshravan/claude-spend</a>.`;
+}
+
+// ---------- Share card ----------
+async function openShare() {
+  if (!DATA) return;
+  await document.fonts.ready;
+  const t = DATA.totals;
+  const ctx = document.getElementById('shareCanvas').getContext('2d');
+  const W = 1200, H = 630;
+  ctx.fillStyle = '#12151D'; ctx.fillRect(0, 0, W, H);
+
+  // Daily spend as a faint skyline along the bottom
+  const days = DATA.dailyUsage || [];
+  const max = Math.max(...days.map(d => d.cost), 0) || 1;
+  const slot = W / Math.max(1, days.length);
+  ctx.fillStyle = 'rgba(233,180,76,0.16)';
+  days.forEach((d, i) => { const bh = (d.cost / max) * 170; ctx.fillRect(i * slot + 1, H - bh, Math.max(1, slot - 2), bh); });
+
   ctx.textAlign = 'left';
+  ctx.fillStyle = COL.text; ctx.font = `600 34px ${FONT}`;
+  ctx.fillText('My Claude Code spend', 64, 92);
+  if (t.dateRange) {
+    ctx.fillStyle = COL.muted; ctx.font = `400 20px ${FONT}`;
+    ctx.fillText(formatRange(t.dateRange.from, t.dateRange.to), 64, 128);
+  }
+  ctx.fillStyle = COL.gold; ctx.font = `600 120px ${FONT}`;
+  ctx.fillText(fmtCost(t.totalCost), 58, 268);
+  ctx.fillStyle = COL.muted; ctx.font = `400 20px ${FONT}`;
+  ctx.fillText('API-equivalent cost', 64, 304);
 
-  // Show overlay
-  document.getElementById('shareOverlay').classList.add('open');
+  [['Tokens', fmt(t.totalTokens)], ['Conversations', fmtFull(t.totalSessions)], ['Cache hit rate', ((t.cacheHitRate || 0) * 100).toFixed(0) + '%']]
+    .forEach(([label, value], i) => {
+      const x = 64 + i * 300;
+      ctx.fillStyle = COL.dim; ctx.font = `400 18px ${FONT}`; ctx.fillText(label, x, 372);
+      ctx.fillStyle = COL.text; ctx.font = `600 40px ${FONT}`; ctx.fillText(value, x, 418);
+    });
+  ctx.fillStyle = COL.dim; ctx.font = `400 16px ${FONT}`; ctx.textAlign = 'right';
+  ctx.fillText('github.com/myselfshravan/claude-spend', W - 64, 92);
+  document.getElementById('shareModal').hidden = false;
+  document.getElementById('shareDownload').focus();
 }
+function closeShare() { document.getElementById('shareModal').hidden = true; }
+document.getElementById('shareBtn').addEventListener('click', openShare);
+document.getElementById('shareCancel').addEventListener('click', closeShare);
+document.getElementById('shareModal').addEventListener('click', e => { if (e.target.id === 'shareModal') closeShare(); });
+document.getElementById('shareDownload').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.download = 'claude-spend.png';
+  a.href = document.getElementById('shareCanvas').toDataURL('image/png');
+  a.click();
+});
 
-function downloadShareCard() {
-  const canvas = document.getElementById('shareCanvas');
-  const link = document.createElement('a');
-  link.download = 'claude-spend-stats.png';
-  link.href = canvas.toDataURL('image/png');
-  link.click();
-}
+// ---------- Controls ----------
+document.querySelectorAll('#rangePresets button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.days === 'all') applyFilters({ from: '', to: '' });
+  else applyFilters({ from: daysAgo(+b.dataset.days - 1), to: '' });
+}));
+document.getElementById('fromDate').addEventListener('change', e => applyFilters({ from: e.target.value }));
+document.getElementById('toDate').addEventListener('change', e => applyFilters({ to: e.target.value }));
+document.getElementById('accountSelect').addEventListener('change', e => applyFilters({ account: e.target.value }));
+document.querySelectorAll('#metricToggle button').forEach(b => b.addEventListener('click', () => {
+  metric = b.dataset.metric;
+  document.querySelectorAll('#metricToggle button').forEach(x => x.classList.toggle('active', x === b));
+  renderDaily();
+}));
+document.getElementById('refreshBtn').addEventListener('click', async () => {
+  document.getElementById('main').classList.add('busy');
+  try { await fetch('/api/refresh'); } catch {}
+  fetchData();
+});
 
-function closeShareCard() {
-  document.getElementById('shareOverlay').classList.remove('open');
-}
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (DATA) { drawDaily(); drawTurns(); } }, 100);
+});
 
 fetchData();
-window.addEventListener('resize', () => { if (DATA) { renderDailyChart(); renderModelChart(); } });
 </script>
 </body>
 </html>
