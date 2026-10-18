@@ -3,7 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Claude Spend</title>
+<title>cc-spend</title>
+<script>
+  // Set the theme before first paint: saved choice, else the system setting
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem('cc-spend-theme'); } catch (e) {}
+    document.documentElement.dataset.theme = saved === 'light' || saved === 'dark'
+      ? saved : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -31,9 +40,44 @@
     --c-read: #73DACA;
     --c-output: #9ECE6A;
 
+    --line-strong: #3A4256;
+    --tip-bg: #0D1017;
+    --topbar: rgba(18, 21, 29, 0.88);
+    --scrim: rgba(5, 7, 12, 0.6);
+    --shadow: rgba(0, 0, 0, 0.45);
+
     --radius: 12px;
     --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     color-scheme: dark;
+  }
+
+  /* Light palette: same roles, hues darkened enough to read on white */
+  :root[data-theme="light"] {
+    --bg: #F5F6F8;
+    --surface: #FFFFFF;
+    --raised: #F0F2F5;
+    --line: #DDE1E8;
+    --line-soft: #EBEEF2;
+    --line-strong: #C3C9D4;
+    --text: #1A1F2B;
+    --muted: #556075;
+    --dim: #8590A3;
+
+    --gold: #B7791F;
+    --gold-soft: rgba(183, 121, 31, 0.08);
+    --up: #D6455D;
+    --down: #3F8F2F;
+
+    --c-input: #3D6FE0;
+    --c-write: #8B5CF6;
+    --c-read: #0F9C8C;
+    --c-output: #4E9A2A;
+
+    --tip-bg: #FFFFFF;
+    --topbar: rgba(245, 246, 248, 0.88);
+    --scrim: rgba(20, 24, 33, 0.35);
+    --shadow: rgba(20, 24, 33, 0.14);
+    color-scheme: light;
   }
 
   html { background: var(--bg); }
@@ -54,7 +98,7 @@
   /* ---- Top bar ---- */
   .topbar {
     position: sticky; top: 0; z-index: 40;
-    background: rgba(18, 21, 29, 0.88); backdrop-filter: saturate(140%) blur(10px);
+    background: var(--topbar); backdrop-filter: saturate(140%) blur(10px);
     border-bottom: 1px solid var(--line);
   }
   .topbar-inner {
@@ -83,7 +127,7 @@
     height: 32px; padding: 0 10px; background: var(--surface); border: 1px solid var(--line);
     border-radius: 8px; font-size: 13px; color: var(--text);
   }
-  .field:hover { border-color: #3A4256; }
+  .field:hover { border-color: var(--line-strong); }
   select.field { padding-right: 6px; }
 
   .btn {
@@ -91,7 +135,7 @@
     background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
     color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
   }
-  .btn:hover { color: var(--text); border-color: #3A4256; }
+  .btn:hover { color: var(--text); border-color: var(--line-strong); }
   .btn svg { width: 14px; height: 14px; }
   .linkbtn { background: none; border: 0; color: var(--c-input); cursor: pointer; font-size: 13px; font-weight: 500; padding: 0; }
   .linkbtn:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -111,7 +155,7 @@
   .notice {
     display: flex; gap: 12px; align-items: flex-start;
     padding: 10px 14px; border-radius: 10px; font-size: 13px; color: var(--muted);
-    background: rgba(233, 180, 76, 0.06); border: 1px solid rgba(233, 180, 76, 0.22);
+    background: var(--gold-soft); border: 1px solid color-mix(in srgb, var(--gold) 28%, transparent);
   }
   .notice strong { color: var(--gold); font-weight: 600; }
   .notice .close { margin-left: auto; background: none; border: 0; color: var(--dim); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; }
@@ -152,9 +196,9 @@
   /* Floating tooltip shared by help icons and charts */
   .tip {
     position: fixed; z-index: 100; pointer-events: none; max-width: 300px;
-    background: #0D1017; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--tip-bg); border: 1px solid var(--line); border-radius: 8px;
     padding: 8px 10px; font-size: 12.5px; line-height: 1.5; color: var(--text);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 10px 30px var(--shadow);
   }
   .tip .t-title { font-weight: 600; margin-bottom: 4px; }
   .tip .t-row { display: flex; align-items: center; gap: 16px; justify-content: space-between; }
@@ -272,7 +316,7 @@
   footer a { color: var(--muted); }
 
   /* ---- Session drawer ---- */
-  .scrim { position: fixed; inset: 0; z-index: 60; background: rgba(5, 7, 12, 0.6); opacity: 0; pointer-events: none; transition: opacity .2s; }
+  .scrim { position: fixed; inset: 0; z-index: 60; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity .2s; }
   .drawer {
     position: fixed; top: 0; right: 0; bottom: 0; z-index: 61; width: min(760px, 100vw);
     background: var(--surface); border-left: 1px solid var(--line);
@@ -290,7 +334,7 @@
   .drawer-title { font-size: 16px; font-weight: 600; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
   .drawer-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12.5px; color: var(--dim); margin-top: 4px; }
   .icon-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; }
-  .icon-btn:hover { color: var(--text); border-color: #3A4256; }
+  .icon-btn:hover { color: var(--text); border-color: var(--line-strong); }
   .drawer-body { padding: 18px 22px 28px; display: grid; gap: 18px; }
   .mini-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
   .mini-kpis div { background: var(--surface); padding: 10px 12px; }
@@ -309,7 +353,7 @@
   .turn { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; padding: 10px 6px; margin: 0 -6px; border-radius: 8px; border-top: 1px solid var(--line-soft); }
   .turn:first-child { border-top: 0; }
   .turn.flash { animation: flash 1.2s ease-out; }
-  @keyframes flash { from { background: rgba(233, 180, 76, 0.18); } to { background: transparent; } }
+  @keyframes flash { from { background: color-mix(in srgb, var(--gold) 20%, transparent); } to { background: transparent; } }
   .turn-num { color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
   .turn-text { word-break: break-word; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .turn-text.none { color: var(--dim); font-style: italic; }
@@ -317,13 +361,32 @@
   .turn-right b { display: block; font-size: 14px; font-weight: 600; color: var(--gold); }
 
   /* ---- Share card ---- */
-  .modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(5, 7, 12, 0.7); padding: 16px; }
+  .modal { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: var(--scrim); padding: 16px; }
   .modal-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; width: min(680px, 100%); }
   .modal-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
   .modal-card canvas { width: 100%; border-radius: 8px; border: 1px solid var(--line); display: block; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   .btn.primary { background: var(--gold); color: #1A1406; border-color: var(--gold); }
   .btn.primary:hover { color: #1A1406; filter: brightness(1.06); }
+
+  /* ---- Export menu & theme toggle ---- */
+  .menu-wrap { position: relative; }
+  .menu {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; min-width: 230px;
+    background: var(--tip-bg); border: 1px solid var(--line); border-radius: 10px; padding: 4px;
+    box-shadow: 0 10px 30px var(--shadow);
+  }
+  .menu button {
+    width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+    background: none; border: 0; border-radius: 7px; padding: 7px 10px; cursor: pointer; text-align: left; font-size: 13px;
+  }
+  .menu button:hover, .menu button:focus-visible { background: var(--raised); outline: none; }
+  .menu button span { color: var(--dim); font-size: 12px; }
+  .menu hr { border: 0; border-top: 1px solid var(--line-soft); margin: 4px 6px; }
+  .menu-note { padding: 6px 10px 4px; font-size: 12px; color: var(--dim); }
+  .theme-btn { display: inline-grid; place-items: center; font-size: 0; }
+  .theme-btn svg { width: 15px; height: 15px; }
+  :root[data-theme="light"] .theme-btn .sun, :root:not([data-theme="light"]) .theme-btn .moon { display: none; }
 
   @media (max-width: 640px) {
     .topbar-inner, .wrap { padding-left: 16px; padding-right: 16px; }
@@ -343,7 +406,7 @@
 <div id="app" hidden>
   <header class="topbar">
     <div class="topbar-inner">
-      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Claude Spend</div>
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>cc-spend</div>
       <div class="filters">
         <div class="seg" id="rangePresets" role="group" aria-label="Date range">
           <button data-days="1">Today</button>
@@ -367,6 +430,26 @@
         <button class="btn" id="shareBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
           Share
+        </button>
+        <div class="menu-wrap">
+          <button class="btn" id="exportBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="exportMenu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export
+          </button>
+          <div class="menu" id="exportMenu" role="menu" hidden>
+            <div class="menu-note" id="exportNote"></div>
+            <button role="menuitem" data-export="sessions">Sessions <span>CSV</span></button>
+            <button role="menuitem" data-export="daily">Daily totals <span>CSV</span></button>
+            <button role="menuitem" data-export="models">Models <span>CSV</span></button>
+            <button role="menuitem" data-export="projects">Projects <span>CSV</span></button>
+            <button role="menuitem" data-export="prompts">Top prompts <span>CSV</span></button>
+            <hr>
+            <button role="menuitem" data-export="json">Full report <span>JSON</span></button>
+          </div>
+        </div>
+        <button class="btn theme-btn" id="themeBtn" aria-label="Switch to light mode" data-tip="Switch to light mode">
+          <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         </button>
       </div>
     </div>
@@ -502,20 +585,26 @@ const FILTERS = (() => {
   return { from: date(p.get('from')), to: date(p.get('to')), account: p.get('account') || 'all' };
 })();
 
-const rootStyle = getComputedStyle(document.documentElement);
-const C = name => rootStyle.getPropertyValue(name).trim();
-const COL = {
-  text: C('--text'), muted: C('--muted'), dim: C('--dim'), line: C('--line'), lineSoft: C('--line-soft'),
-  raised: C('--raised'), gold: C('--gold'),
-  input: C('--c-input'), write: C('--c-write'), read: C('--c-read'), output: C('--c-output'),
-};
-const FONT = "'Geist', system-ui, sans-serif";
+// Canvas can't use CSS variables, so the palette is read into COL and re-read on theme change
+const COL = {};
 const SERIES = [
-  { key: 'inputTokens', label: 'Input', color: COL.input },
-  { key: 'cacheCreationTokens', label: 'Cache writes', color: COL.write },
-  { key: 'cacheReadTokens', label: 'Cache reads', color: COL.read },
-  { key: 'outputTokens', label: 'Output', color: COL.output },
+  { key: 'inputTokens', label: 'Input', col: 'input' },
+  { key: 'cacheCreationTokens', label: 'Cache writes', col: 'write' },
+  { key: 'cacheReadTokens', label: 'Cache reads', col: 'read' },
+  { key: 'outputTokens', label: 'Output', col: 'output' },
 ];
+function readColors() {
+  const style = getComputedStyle(document.documentElement);
+  const C = name => style.getPropertyValue(name).trim();
+  Object.assign(COL, {
+    bg: C('--bg'), text: C('--text'), muted: C('--muted'), dim: C('--dim'), line: C('--line'), lineSoft: C('--line-soft'),
+    raised: C('--raised'), gold: C('--gold'), tipBg: C('--tip-bg'),
+    input: C('--c-input'), write: C('--c-write'), read: C('--c-read'), output: C('--c-output'),
+  });
+  for (const s of SERIES) s.color = COL[s.col];
+}
+readColors();
+const FONT = "'Geist', system-ui, sans-serif";
 
 // ---------- Formatting ----------
 function fmt(n) {
@@ -567,12 +656,13 @@ function modelShort(m) {
   if (match) return `${match[3][0].toUpperCase() + match[3].slice(1)} ${match[1]}${match[2] ? '.' + match[2] : ''}`;
   return m;
 }
+// Used in HTML only, so CSS variables keep swatches correct across theme switches
 function modelColor(m) {
-  if (/opus/i.test(m)) return COL.input;
-  if (/sonnet/i.test(m)) return COL.output;
-  if (/haiku/i.test(m)) return COL.read;
-  if (/fable|mythos/i.test(m)) return COL.write;
-  return COL.dim;
+  if (/opus/i.test(m)) return 'var(--c-input)';
+  if (/sonnet/i.test(m)) return 'var(--c-output)';
+  if (/haiku/i.test(m)) return 'var(--c-read)';
+  if (/fable|mythos/i.test(m)) return 'var(--c-write)';
+  return 'var(--dim)';
 }
 function projectShort(p) {
   let s = p.replace(/^[A-Za-z]--/, '').replace(/^-+/, '');
@@ -834,7 +924,7 @@ function drawDaily() {
     ctx.font = `500 11px ${FONT}`;
     const tw = ctx.measureText(label).width + 12;
     const lx = w - right - tw;
-    ctx.fillStyle = '#0D1017'; ctx.strokeStyle = COL.line;
+    ctx.fillStyle = COL.tipBg; ctx.strokeStyle = COL.line;
     ctx.beginPath(); ctx.roundRect(lx, y - 9, tw, 18, 9); ctx.fill(); ctx.stroke();
     ctx.fillStyle = COL.text; ctx.textAlign = 'left';
     ctx.fillText(label, lx + 6, y + 4);
@@ -1215,6 +1305,7 @@ document.getElementById('drawerClose').addEventListener('click', closeDrawer);
 document.getElementById('scrim').addEventListener('click', closeDrawer);
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  if (!exportMenu.hidden) { setExportMenu(false); return exportBtn.focus(); }
   if (!document.getElementById('shareModal').hidden) return closeShare();
   closeDrawer();
 });
@@ -1225,8 +1316,8 @@ function renderFooter() {
   document.getElementById('footer').innerHTML = `
     Reads ${sources || 'your Claude Code data'} on this machine and sends nothing anywhere.
     Costs are Anthropic API list-price equivalents (${escapeHtml(DATA.filters?.pricingSource || '')}), not what your plan bills.<br>
-    Originally by <a href="https://www.linkedin.com/in/writetoaniketparihar/" target="_blank" rel="noopener">Aniket Parihar</a>.
-    Maintained fork: <a href="https://github.com/myselfshravan/claude-spend" target="_blank" rel="noopener">myselfshravan/claude-spend</a>.`;
+    <a href="https://github.com/myselfshravan/cc-spend" target="_blank" rel="noopener">cc-spend</a> by Shravan Revanna,
+    inspired by <a href="https://github.com/writetoaniketparihar-collab/claude-spend" target="_blank" rel="noopener">claude-spend</a> by Aniket Parihar.`;
 }
 
 // ---------- Share card ----------
@@ -1236,14 +1327,15 @@ async function openShare() {
   const t = DATA.totals;
   const ctx = document.getElementById('shareCanvas').getContext('2d');
   const W = 1200, H = 630;
-  ctx.fillStyle = '#12151D'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = COL.bg; ctx.fillRect(0, 0, W, H);
 
   // Daily spend as a faint skyline along the bottom
   const days = DATA.dailyUsage || [];
   const max = Math.max(...days.map(d => d.cost), 0) || 1;
   const slot = W / Math.max(1, days.length);
-  ctx.fillStyle = 'rgba(233,180,76,0.16)';
+  ctx.fillStyle = COL.gold; ctx.globalAlpha = 0.16;
   days.forEach((d, i) => { const bh = (d.cost / max) * 170; ctx.fillRect(i * slot + 1, H - bh, Math.max(1, slot - 2), bh); });
+  ctx.globalAlpha = 1;
 
   ctx.textAlign = 'left';
   ctx.fillStyle = COL.text; ctx.font = `600 34px ${FONT}`;
@@ -1264,7 +1356,7 @@ async function openShare() {
       ctx.fillStyle = COL.text; ctx.font = `600 40px ${FONT}`; ctx.fillText(value, x, 418);
     });
   ctx.fillStyle = COL.dim; ctx.font = `400 16px ${FONT}`; ctx.textAlign = 'right';
-  ctx.fillText('github.com/myselfshravan/claude-spend', W - 64, 92);
+  ctx.fillText('npx cc-spend', W - 64, 92);
   document.getElementById('shareModal').hidden = false;
   document.getElementById('shareDownload').focus();
 }
@@ -1274,10 +1366,120 @@ document.getElementById('shareCancel').addEventListener('click', closeShare);
 document.getElementById('shareModal').addEventListener('click', e => { if (e.target.id === 'shareModal') closeShare(); });
 document.getElementById('shareDownload').addEventListener('click', () => {
   const a = document.createElement('a');
-  a.download = 'claude-spend.png';
+  a.download = 'cc-spend.png';
   a.href = document.getElementById('shareCanvas').toDataURL('image/png');
   a.click();
 });
+
+// ---------- Theme ----------
+const THEME_KEY = 'cc-spend-theme';
+function syncThemeButton() {
+  const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  const btn = document.getElementById('themeBtn');
+  btn.setAttribute('aria-label', `Switch to ${next} mode`);
+  btn.dataset.tip = `Switch to ${next} mode`;
+}
+function setTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  readColors();
+  syncThemeButton();
+  if (DATA) { render(); drawTurns(); }
+}
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  try { localStorage.setItem(THEME_KEY, theme); } catch {}
+  hideTip();
+  setTheme(theme);
+});
+// Follow the system setting until the user picks a theme themselves
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', e => {
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch {}
+  if (!saved) setTheme(e.matches ? 'light' : 'dark');
+});
+syncThemeButton();
+
+// ---------- Export ----------
+function toCSV(rows, columns) {
+  const cell = v => {
+    const s = v == null ? '' : String(v);
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [columns.map(c => c[0]).join(',')];
+  for (const r of rows) lines.push(columns.map(([, get]) => cell(typeof get === 'function' ? get(r) : r[get])).join(','));
+  return lines.join('\r\n') + '\r\n';
+}
+const money = v => (v == null ? '' : Number(v).toFixed(4));
+const TOKEN_COLUMNS = [
+  ['input_tokens', 'inputTokens'], ['cache_write_tokens', 'cacheCreationTokens'],
+  ['cache_read_tokens', 'cacheReadTokens'], ['output_tokens', 'outputTokens'], ['total_tokens', 'totalTokens'],
+];
+const EXPORTS = {
+  sessions: () => toCSV(DATA.sessions, [
+    ['date', 'date'], ['account', 'account'], ['project', r => projectShort(r.project)], ['session_id', 'sessionId'],
+    ['first_prompt', 'firstPrompt'], ['model', 'model'], ['messages', 'queryCount'],
+    ...TOKEN_COLUMNS, ['cost_usd', r => money(r.cost)], ['subagent_cost_usd', r => money(r.subagentCost)],
+  ]),
+  daily: () => toCSV(DATA.dailyUsage, [
+    ['date', 'date'], ['sessions', 'sessions'], ['messages', 'queries'], ...TOKEN_COLUMNS, ['cost_usd', r => money(r.cost)],
+  ]),
+  models: () => toCSV([...(DATA.modelBreakdown || [])].sort(byCost), [
+    ['model', 'model'], ['messages', 'queryCount'], ...TOKEN_COLUMNS,
+    ['cost_usd', r => (r.priced === false ? '' : money(r.cost))], ['priced', r => (r.priced === false ? 'no' : 'yes')],
+  ]),
+  projects: () => toCSV([...(DATA.projectBreakdown || [])].sort(byCost), [
+    ['project', r => projectShort(r.project)], ['sessions', 'sessionCount'], ['messages', 'queryCount'],
+    ['input_tokens', 'inputTokens'], ['output_tokens', 'outputTokens'], ['total_tokens', 'totalTokens'], ['cost_usd', r => money(r.cost)],
+  ]),
+  prompts: () => toCSV(DATA.topPrompts || [], [
+    ['date', 'date'], ['account', 'account'], ['session_id', 'sessionId'], ['prompt', 'prompt'], ['model', 'model'],
+    ...TOKEN_COLUMNS, ['cost_usd', r => money(r.cost)],
+  ]),
+  json: () => JSON.stringify(DATA, null, 2),
+};
+
+function exportStem() {
+  const range = DATA.totals.dateRange;
+  const account = FILTERS.account && FILTERS.account !== 'all' ? '-' + FILTERS.account.replace(/[^\w-]+/g, '_') : '';
+  return `cc-spend${account}${range ? `-${range.from}_${range.to}` : ''}`;
+}
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const exportBtn = document.getElementById('exportBtn');
+const exportMenu = document.getElementById('exportMenu');
+function setExportMenu(open) {
+  exportMenu.hidden = !open;
+  exportBtn.setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  const range = DATA?.totals?.dateRange;
+  const account = FILTERS.account && FILTERS.account !== 'all' ? `, ${FILTERS.account} account` : '';
+  document.getElementById('exportNote').textContent = range ? `${formatRange(range.from, range.to)}${account}` : 'Current view';
+  exportMenu.querySelector('button').focus();
+}
+exportBtn.addEventListener('click', () => setExportMenu(exportMenu.hidden));
+exportMenu.addEventListener('click', e => {
+  const kind = e.target.closest('[data-export]')?.dataset.export;
+  if (!kind || !DATA) return;
+  const isJson = kind === 'json';
+  download(`${exportStem()}${isJson ? '' : '-' + kind}.${isJson ? 'json' : 'csv'}`, EXPORTS[kind](),
+    isJson ? 'application/json' : 'text/csv;charset=utf-8');
+  setExportMenu(false);
+  exportBtn.focus();
+});
+exportMenu.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  e.preventDefault();
+  const items = [...exportMenu.querySelectorAll('button')];
+  const i = items.indexOf(document.activeElement);
+  items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus();
+});
+document.addEventListener('click', e => { if (!exportMenu.hidden && !e.target.closest('.menu-wrap')) setExportMenu(false); });
 
 // ---------- Controls ----------
 document.querySelectorAll('#rangePresets button').forEach(b => b.addEventListener('click', () => {

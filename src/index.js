@@ -6,10 +6,10 @@ const args = process.argv.slice(2);
 
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`
-claude-spend - See where your Claude Code tokens go
+cc-spend - See where your Claude Code tokens go
 
 Usage:
-  claude-spend [options]
+  cc-spend [options]
 
 Options:
   --port <port>          Port to run dashboard on (default: 3456)
@@ -24,10 +24,10 @@ Options:
   --help, -h             Show this help message
 
 Examples:
-  npx claude-spend                                      Open dashboard in browser
-  claude-spend --port 8080                              Use custom port
-  claude-spend --dir work=~/.claude --dir personal=~/.claude-personal
-  claude-spend --days 30                                Last 30 days
+  npx cc-spend                                      Open dashboard in browser
+  cc-spend --port 8080                              Use custom port
+  cc-spend --dir work=~/.claude --dir personal=~/.claude-personal
+  cc-spend --days 30                                Last 30 days
 `);
   process.exit(0);
 }
@@ -83,7 +83,7 @@ const server = app.listen(port, '127.0.0.1', async () => {
   if (account) params.set('account', account);
   const query = params.toString();
   const url = `http://localhost:${port}${query ? '/?' + query : ''}`;
-  console.log(`\n  claude-spend dashboard running at ${url}\n`);
+  console.log(`\n  cc-spend dashboard running at ${url}\n`);
 
   if (!noOpen) {
     try {

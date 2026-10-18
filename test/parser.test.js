@@ -33,7 +33,7 @@ function writeJSONL(file, rows) {
 }
 
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-spend-test-'));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-spend-test-'));
   const project = path.join(root, '.claude', 'projects', '-home-me-app');
   const usage = (output) => ({
     input_tokens: 10,
