@@ -24,7 +24,7 @@ Options:
   --help, -h             Show this help message
 
 Examples:
-  npx cc-spend                                      Open dashboard in browser
+  npx @shravanrevanna/cc-spend                      Open dashboard in browser
   cc-spend --port 8080                              Use custom port
   cc-spend --dir work=~/.claude --dir personal=~/.claude-personal
   cc-spend --days 30                                Last 30 days

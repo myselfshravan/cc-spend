@@ -3,7 +3,7 @@
 See what your Claude Code usage actually costs. One command, runs locally.
 
 ```
-npx cc-spend
+npx @shravanrevanna/cc-spend
 ```
 
 Opens a dashboard in your browser with your tokens, API-equivalent cost and cache savings per day, model, project, session and turn.
@@ -33,6 +33,12 @@ Opens a dashboard in your browser with your tokens, API-equivalent cost and cach
 </details>
 
 ## Options
+
+Install it once to get a short `cc-spend` command:
+
+```
+npm install -g @shravanrevanna/cc-spend
+```
 
 ```
 cc-spend --days 30                       # open on the last 30 days

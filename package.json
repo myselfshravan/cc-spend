@@ -1,5 +1,5 @@
 {
-  "name": "cc-spend",
+  "name": "@shravanrevanna/cc-spend",
   "version": "2.0.0",
   "description": "See what your Claude Code usage costs: tokens, API-equivalent spend and cache savings per day, model, project and session. Runs locally.",
   "main": "src/index.js",
